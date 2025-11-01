@@ -93,6 +93,7 @@ export default function EQSection() {
             <HardwareButton
               label="DRIVE"
               size="small"
+              onClick={() => {}}
             />
             <span className="text-[9px] text-gray-300 font-mono">MASTER</span>
             <VerticalFader
