@@ -4,7 +4,7 @@ import RotaryKnob from './RotaryKnob';
 import HardwareButton from './HardwareButton';
 import { useAudioStore } from '@/store/audioStore';
 
-export default function MonitorSection({ audioData }) {
+export default function MonitorSection({ audioData }: { audioData: any }) {
   const [eqGain, setEqGain] = useState(50);
   const [monitor, setMonitor] = useState(50);
   const [redGain, setRedGain] = useState(50);
@@ -16,7 +16,7 @@ export default function MonitorSection({ audioData }) {
   const openPluginModal = useAudioStore((state) => state.openPluginModal);
 
   // Track last tap time for double-tap detection
-  const lastTapTime = useRef({});
+  const lastTapTime = useRef<{ [key: string]: number }>({});
 
   // Default values for knobs
   const defaultValues = {
@@ -57,7 +57,7 @@ export default function MonitorSection({ audioData }) {
   };
 
   // Handle option-click for reset (Alt key on Windows/Linux, Option key on Mac)
-  const handleKnobClick = (e, knobName, setter) => {
+  const handleKnobClick = (e: any, knobName: any, setter: any) => {
     if (e.altKey) {
       setter(defaultValues[knobName]);
       e.preventDefault();
