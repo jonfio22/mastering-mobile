@@ -575,7 +575,7 @@ export const useAudioStore = create<AudioStore>()(
                 const normalizedVolume = Math.max(0, Math.min(100, (db + 60) * (100 / 60)));
 
                 // Update metering data
-                get().updateMetering({
+                (get().updateMetering as any)({
                   volume: normalizedVolume,
                   inputLevel: normalizedVolume * 0.8,
                   outputLevel: normalizedVolume * 0.9,
@@ -693,7 +693,7 @@ export const useAudioStore = create<AudioStore>()(
           }
 
           // Reset metering to 0
-          get().updateMetering({
+          (get().updateMetering as any)({
             volume: 0,
             inputLevel: 0,
             outputLevel: 0,

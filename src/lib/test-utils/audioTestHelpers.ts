@@ -524,7 +524,7 @@ export function createMockAudioFile(
   filename: string = 'test.wav'
 ): File {
   const buffer = generateSineWave(440, duration, sampleRate)
-  const blob = new Blob([buffer], { type: 'audio/wav' })
+  const blob = new Blob([buffer as any], { type: 'audio/wav' })
 
   return new File([blob], filename, { type: 'audio/wav' })
 }

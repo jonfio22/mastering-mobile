@@ -47,7 +47,7 @@ export async function customAnalysisExample(audioBuffer: AudioBuffer): Promise<A
   const analyzer = new AIAnalysis({
     fftSize: 8192,                    // Higher resolution
     confidenceThreshold: 0.7,         // Only report high-confidence issues
-    minimumSeverity: 'medium',        // Ignore low-severity issues
+    minimumSeverity: 'medium' as any,        // Ignore low-severity issues
     referenceCurve: 'k-weighting',    // Use K-weighting reference
     enableMaskingDetection: true,     // Enable masking detection
     enablePhaseAnalysis: true,        // Enable phase analysis

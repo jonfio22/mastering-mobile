@@ -212,7 +212,7 @@ export class MasteringEngine {
     // True peak limiter using soft clipping (final safety net)
     // Uses WaveShaper for transparent distortion prevention
     this.truePeakLimiter = this.audioContext.createWaveShaper();
-    this.truePeakLimiter.curve = this.createSoftClippingCurve();
+    this.truePeakLimiter.curve = this.createSoftClippingCurve() as any;
 
     // Main analyser for visualization (after output)
     this.analyserNode = this.audioContext.createAnalyser();

@@ -206,7 +206,7 @@ export class BaseAudioEngine {
       // Create soft clipping WaveShaper for true peak limiting (safety net)
       // This is INVISIBLE to the user and only engages to prevent damage
       this.truePeakLimiterNode = this.audioContext.createWaveShaper();
-      this.truePeakLimiterNode.curve = this.createSoftClipCurve(1.5, 2048); // 3dB headroom
+      this.truePeakLimiterNode.curve = this.createSoftClipCurve(1.5, 2048) as any; // 3dB headroom
 
       // Create analyser for output metering
       this.analyserNode = this.audioContext.createAnalyser();

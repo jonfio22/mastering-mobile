@@ -92,7 +92,7 @@ export default function WaveformDisplay({
 
   // Initialize WaveSurfer only when container is mounted and ready
   const { wavesurfer, isPlaying: wsPlaying } = useWavesurfer({
-    container: containerMounted && containerRef.current ? containerRef : undefined,
+    container: containerMounted && containerRef.current ? containerRef : null as any,
     height,
     waveColor: '#10b981', // VU meter green
     progressColor: '#059669', // Darker green for progress

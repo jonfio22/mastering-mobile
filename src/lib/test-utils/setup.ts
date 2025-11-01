@@ -26,7 +26,7 @@ afterEach(() => {
 beforeAll(() => {
   // Mock AudioContext
   global.AudioContext = MockAudioContext as any
-  global.webkitAudioContext = MockAudioContext as any
+  ;(global as any).webkitAudioContext = MockAudioContext as any
 
   // Mock AudioWorkletNode
   ;(global as any).AudioWorkletNode = MockAudioWorkletNode as any

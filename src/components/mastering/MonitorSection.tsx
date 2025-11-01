@@ -19,7 +19,7 @@ export default function MonitorSection({ audioData }: { audioData: any }) {
   const lastTapTime = useRef<{ [key: string]: number }>({});
 
   // Default values for knobs
-  const defaultValues = {
+  const defaultValues: { [key: string]: number } = {
     eqGain: 50,
     monitor: 50,
     redGain: 50,
