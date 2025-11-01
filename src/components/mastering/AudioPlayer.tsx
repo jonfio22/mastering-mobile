@@ -1,125 +1,80 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React from 'react';
 import { Play, Pause, SkipBack, SkipForward } from 'lucide-react';
+import { useAudioStore, PlaybackState } from '@/store/audioStore';
 
-export default function AudioPlayer({ audioFile, onAudioData }) {
-  const audioRef = useRef(null);
-  const audioContextRef = useRef(null);
-  const analyserRef = useRef(null);
-  const sourceRef = useRef(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const animationFrameRef = useRef(null);
+/**
+ * AudioPlayer component
+ * Integrates with Zustand audio store for playback control
+ */
+export default function AudioPlayer() {
+  // Get state and actions from store
+  const audioFile = useAudioStore((state) => state.audioFile);
+  const playbackState = useAudioStore((state) => state.playbackState);
+  const currentTime = useAudioStore((state) => state.currentTime);
+  const duration = useAudioStore((state) => state.duration);
+  const play = useAudioStore((state) => state.play);
+  const pause = useAudioStore((state) => state.pause);
+  const stop = useAudioStore((state) => state.stop);
+  const seek = useAudioStore((state) => state.seek);
 
-  useEffect(() => {
-    if (audioFile && audioRef.current) {
-      const url = URL.createObjectURL(audioFile);
-      audioRef.current.src = url;
-      
-      return () => URL.revokeObjectURL(url);
-    }
-  }, [audioFile]);
+  // Derived state
+  const isPlaying = playbackState === PlaybackState.PLAYING;
+  const isLoading = playbackState === PlaybackState.LOADING;
 
-  useEffect(() => {
-    if (isPlaying && audioRef.current) {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-        analyserRef.current = audioContextRef.current.createAnalyser();
-        analyserRef.current.fftSize = 2048;
-        sourceRef.current = audioContextRef.current.createMediaElementSource(audioRef.current);
-        sourceRef.current.connect(analyserRef.current);
-        analyserRef.current.connect(audioContextRef.current.destination);
-      }
-
-      const updateAudioData = () => {
-        if (analyserRef.current) {
-          const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-          analyserRef.current.getByteFrequencyData(dataArray);
-          
-          // Calculate average volume (0-100)
-          const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-          const volume = (average / 255) * 100;
-          
-          onAudioData?.({ volume, frequencies: dataArray });
-        }
-        animationFrameRef.current = requestAnimationFrame(updateAudioData);
-      };
-
-      updateAudioData();
-
-      return () => {
-        if (animationFrameRef.current) {
-          cancelAnimationFrame(animationFrameRef.current);
-        }
-      };
+  /**
+   * Toggle play/pause
+   */
+  const togglePlay = async () => {
+    if (isPlaying) {
+      pause();
     } else {
-      onAudioData?.({ volume: 0, frequencies: new Uint8Array(0) });
-    }
-  }, [isPlaying, onAudioData]);
-
-  const togglePlay = () => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
+      await play();
     }
   };
 
-  const handleTimeUpdate = () => {
-    if (audioRef.current) {
-      setCurrentTime(audioRef.current.currentTime);
-    }
-  };
-
-  const handleLoadedMetadata = () => {
-    if (audioRef.current) {
-      setDuration(audioRef.current.duration);
-    }
-  };
-
-  const handleSeek = (e) => {
-    if (audioRef.current) {
+  /**
+   * Handle seek by clicking on progress bar
+   */
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (duration > 0) {
       const rect = e.currentTarget.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const percentage = x / rect.width;
-      audioRef.current.currentTime = percentage * duration;
+      const newTime = percentage * duration;
+      seek(newTime);
     }
   };
 
-  const formatTime = (time) => {
+  /**
+   * Format time as MM:SS
+   */
+  const formatTime = (time: number): string => {
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const skip = (seconds) => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = Math.max(0, Math.min(duration, audioRef.current.currentTime + seconds));
-    }
+  /**
+   * Skip forward or backward by specified seconds
+   */
+  const skip = (seconds: number) => {
+    const newTime = Math.max(0, Math.min(duration, currentTime + seconds));
+    seek(newTime);
   };
 
+  // Don't render if no audio file is loaded
   if (!audioFile) return null;
 
   return (
     <div className="w-full p-4 bg-gradient-to-b from-gray-800 to-gray-900 rounded-lg border-2 border-gray-700">
-      <audio
-        ref={audioRef}
-        onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={handleLoadedMetadata}
-        onEnded={() => setIsPlaying(false)}
-      />
-
       {/* Progress bar */}
-      <div 
+      <div
         className="w-full h-2 bg-gray-900 rounded-full mb-4 cursor-pointer overflow-hidden"
         onClick={handleSeek}
       >
-        <div 
+        <div
           className="h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all"
-          style={{ width: `${(currentTime / duration) * 100}%` }}
+          style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
         />
       </div>
 
@@ -132,14 +87,16 @@ export default function AudioPlayer({ audioFile, onAudioData }) {
         <div className="flex items-center gap-2">
           <button
             onClick={() => skip(-10)}
-            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+            disabled={isLoading}
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <SkipBack className="w-4 h-4 text-gray-300" />
           </button>
 
           <button
             onClick={togglePlay}
-            className="p-3 rounded-lg bg-blue-600 hover:bg-blue-700 transition-colors"
+            disabled={isLoading}
+            className="p-3 rounded-lg bg-blue-600 hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isPlaying ? (
               <Pause className="w-5 h-5 text-white" />
@@ -150,7 +107,8 @@ export default function AudioPlayer({ audioFile, onAudioData }) {
 
           <button
             onClick={() => skip(10)}
-            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+            disabled={isLoading}
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <SkipForward className="w-4 h-4 text-gray-300" />
           </button>

@@ -1,0 +1,356 @@
+/**
+ * @fileoverview Example usage of WaveformDisplay component
+ * @description Shows how to integrate the WaveformDisplay into your mastering interface
+ */
+
+import React, { useEffect } from 'react';
+import WaveformDisplay from '@/components/mastering/WaveformDisplay';
+import AudioPlayer from '@/components/mastering/AudioPlayer';
+import AudioUploader from '@/components/mastering/AudioUploader';
+import { useAudioStore } from '@/store/audioStore';
+
+/**
+ * Example 1: Basic Integration
+ * The simplest way to use the WaveformDisplay component
+ */
+export function BasicExample() {
+  return (
+    <div className="p-4 space-y-4 bg-gray-950 min-h-screen">
+      <h1 className="text-2xl font-bold text-white">Audio Mastering</h1>
+
+      {/* Upload audio */}
+      <AudioUploader />
+
+      {/* Display waveform */}
+      <WaveformDisplay />
+
+      {/* Playback controls */}
+      <AudioPlayer />
+    </div>
+  );
+}
+
+/**
+ * Example 2: Custom Height and Styling
+ * Shows how to customize the appearance
+ */
+export function CustomStyledExample() {
+  return (
+    <div className="p-6 space-y-6 bg-gradient-to-br from-gray-950 to-black min-h-screen">
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-3xl font-bold text-emerald-400 mb-2">
+          Professional Mastering Studio
+        </h1>
+        <p className="text-gray-400 mb-8">
+          Upload your audio and visualize the waveform
+        </p>
+
+        <AudioUploader />
+
+        {/* Larger waveform with custom styling */}
+        <WaveformDisplay
+          height={256}
+          className="shadow-2xl shadow-emerald-500/10 ring-1 ring-emerald-500/20"
+        />
+
+        <AudioPlayer />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Example 3: Full Mastering Interface
+ * Complete integration with all mastering features
+ */
+export function FullMasteringExample() {
+  const audioBuffer = useAudioStore((state) => state.audioBuffer);
+  const initializeEngines = useAudioStore((state) => state.initializeEngines);
+  const error = useAudioStore((state) => state.error);
+
+  // Initialize audio engines on mount
+  useEffect(() => {
+    initializeEngines();
+  }, [initializeEngines]);
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-white">
+      {/* Header */}
+      <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <h1 className="text-2xl font-bold text-emerald-400">
+            Mastering Suite
+          </h1>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto p-4 space-y-6">
+        {/* Error Display */}
+        {error && (
+          <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-4">
+            <p className="text-red-400 text-sm font-medium">Error: {error}</p>
+          </div>
+        )}
+
+        {/* Audio Upload */}
+        <section>
+          <h2 className="text-lg font-semibold text-gray-300 mb-3">
+            1. Load Audio
+          </h2>
+          <AudioUploader />
+        </section>
+
+        {/* Waveform Display */}
+        {audioBuffer && (
+          <section>
+            <h2 className="text-lg font-semibold text-gray-300 mb-3">
+              2. Waveform Analysis
+            </h2>
+            <WaveformDisplay height={200} />
+          </section>
+        )}
+
+        {/* Playback Controls */}
+        {audioBuffer && (
+          <section>
+            <h2 className="text-lg font-semibold text-gray-300 mb-3">
+              3. Playback
+            </h2>
+            <AudioPlayer />
+          </section>
+        )}
+
+        {/* Additional Processing Sections */}
+        {audioBuffer && (
+          <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Add your EQ, Compressor, Limiter components here */}
+            <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
+              <h3 className="text-sm font-semibold text-emerald-400 mb-2">
+                EQ Section
+              </h3>
+              {/* EQSection component */}
+            </div>
+
+            <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
+              <h3 className="text-sm font-semibold text-emerald-400 mb-2">
+                Compressor
+              </h3>
+              {/* CompressorSection component */}
+            </div>
+
+            <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
+              <h3 className="text-sm font-semibold text-emerald-400 mb-2">
+                Limiter
+              </h3>
+              {/* LimiterSection component */}
+            </div>
+          </section>
+        )}
+      </main>
+    </div>
+  );
+}
+
+/**
+ * Example 4: Responsive Mobile Layout
+ * Optimized for mobile devices
+ */
+export function MobileExample() {
+  const audioBuffer = useAudioStore((state) => state.audioBuffer);
+
+  return (
+    <div className="min-h-screen bg-gray-950 pb-safe">
+      {/* Mobile Header */}
+      <header className="sticky top-0 z-10 bg-gray-900/90 backdrop-blur border-b border-gray-800">
+        <div className="px-4 py-3">
+          <h1 className="text-xl font-bold text-emerald-400">Mastering</h1>
+        </div>
+      </header>
+
+      <div className="p-4 space-y-4">
+        {/* Upload Section */}
+        <AudioUploader />
+
+        {/* Compact Waveform for Mobile */}
+        {audioBuffer && (
+          <div className="space-y-2">
+            <WaveformDisplay
+              height={120}
+              className="rounded-xl"
+            />
+            <AudioPlayer />
+          </div>
+        )}
+
+        {/* Tabs or Accordion for Processing Controls */}
+        {audioBuffer && (
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+            <p className="text-sm text-gray-400">
+              Processing controls go here...
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Example 5: With Loop Controls
+ * Shows waveform with loop region functionality
+ */
+export function LoopExample() {
+  const audioBuffer = useAudioStore((state) => state.audioBuffer);
+  const loop = useAudioStore((state) => state.loop);
+  const loopStart = useAudioStore((state) => state.loopStart);
+  const loopEnd = useAudioStore((state) => state.loopEnd);
+  const setLoopRegion = useAudioStore((state) => state.setLoopRegion);
+  const toggleLoop = useAudioStore((state) => state.toggleLoop);
+  const duration = useAudioStore((state) => state.duration);
+
+  const handleSetLoopToSelection = () => {
+    // Set loop to middle 50% of audio
+    const start = duration * 0.25;
+    const end = duration * 0.75;
+    setLoopRegion(start, end);
+  };
+
+  return (
+    <div className="p-6 bg-gray-950 min-h-screen">
+      <div className="max-w-4xl mx-auto space-y-6">
+        <h1 className="text-2xl font-bold text-white">Loop Practice Mode</h1>
+
+        <AudioUploader />
+
+        {audioBuffer && (
+          <>
+            {/* Waveform with loop region display */}
+            <WaveformDisplay height={180} />
+
+            {/* Loop Controls */}
+            <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-emerald-400">
+                  Loop Controls
+                </h3>
+                <button
+                  onClick={toggleLoop}
+                  className={`px-4 py-2 rounded font-medium text-sm transition-colors ${
+                    loop
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  }`}
+                >
+                  {loop ? 'Loop: ON' : 'Loop: OFF'}
+                </button>
+              </div>
+
+              {loop && (
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <label className="text-gray-400 block mb-1">
+                      Loop Start
+                    </label>
+                    <div className="bg-gray-800 rounded px-3 py-2 font-mono text-emerald-400">
+                      {loopStart.toFixed(2)}s
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-gray-400 block mb-1">
+                      Loop End
+                    </label>
+                    <div className="bg-gray-800 rounded px-3 py-2 font-mono text-emerald-400">
+                      {loopEnd.toFixed(2)}s
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={handleSetLoopToSelection}
+                className="mt-4 w-full bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded transition-colors text-sm"
+              >
+                Set Loop to Middle 50%
+              </button>
+            </div>
+
+            <AudioPlayer />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Example 6: Multi-View Layout
+ * Shows waveform alongside other visualizations
+ */
+export function MultiViewExample() {
+  const audioBuffer = useAudioStore((state) => state.audioBuffer);
+  const meteringData = useAudioStore((state) => state.meteringData);
+
+  return (
+    <div className="min-h-screen bg-gray-950 p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <h1 className="text-3xl font-bold text-white">
+          Professional Studio View
+        </h1>
+
+        <AudioUploader />
+
+        {audioBuffer && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Main Waveform - Takes 2 columns on large screens */}
+            <div className="lg:col-span-2 space-y-4">
+              <h2 className="text-lg font-semibold text-gray-300">
+                Waveform
+              </h2>
+              <WaveformDisplay height={220} />
+              <AudioPlayer />
+            </div>
+
+            {/* Side Panel - VU Meters and Info */}
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold text-gray-300">
+                Metering
+              </h2>
+              <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
+                <p className="text-sm text-gray-400">
+                  VU Meters and level monitoring...
+                </p>
+                {meteringData && (
+                  <div className="mt-4 space-y-2 text-xs font-mono">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Peak L:</span>
+                      <span className="text-emerald-400">
+                        {meteringData.peak.left.toFixed(2)} dB
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Peak R:</span>
+                      <span className="text-emerald-400">
+                        {meteringData.peak.right.toFixed(2)} dB
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Export all examples
+export default {
+  BasicExample,
+  CustomStyledExample,
+  FullMasteringExample,
+  MobileExample,
+  LoopExample,
+  MultiViewExample,
+};
