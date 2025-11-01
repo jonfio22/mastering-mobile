@@ -314,41 +314,40 @@ export const useAudioStore = create<AudioStore>()(
         loadAudioFile: async (file: File) => {
           console.log('loadAudioFile called with:', file);
 
-          try {
-            // Get fresh state
-            const state = get();
-            const { playbackEngine, masteringEngine } = state;
+          // Get fresh state
+          const state = get();
+          const { playbackEngine, masteringEngine } = state;
 
-            console.log('Current engine state:', {
-              playbackEngine: !!playbackEngine,
-              masteringEngine: !!masteringEngine
-            });
+          console.log('Current engine state:', {
+            playbackEngine: !!playbackEngine,
+            masteringEngine: !!masteringEngine
+          });
 
-            if (!playbackEngine || !masteringEngine) {
-              console.error('Engines not initialized, trying to initialize now...');
+          if (!playbackEngine || !masteringEngine) {
+            console.error('Engines not initialized, trying to initialize now...');
 
-              // Try to initialize if not already done
-              await get().initializeEngines();
+            // Try to initialize if not already done
+            await get().initializeEngines();
 
-              // Get fresh state again
-              const newState = get();
+            // Get fresh state again
+            const newState = get();
 
-              if (!newState.playbackEngine || !newState.masteringEngine) {
-                console.error('Still no engines after initialization attempt');
-                set({ error: 'Engines not initialized' });
-                return;
-              }
-            }
-
-            // Get engines again after potential initialization
-            const finalState = get();
-            const engineToUse = finalState.playbackEngine;
-            const masteringEngineToUse = finalState.masteringEngine;
-
-            if (!engineToUse || !masteringEngineToUse) {
-              set({ error: 'Engines not available' });
+            if (!newState.playbackEngine || !newState.masteringEngine) {
+              console.error('Still no engines after initialization attempt');
+              set({ error: 'Engines not initialized' });
               return;
             }
+          }
+
+          // Get engines again after potential initialization
+          const finalState = get();
+          const engineToUse = finalState.playbackEngine;
+          const masteringEngineToUse = finalState.masteringEngine;
+
+          if (!engineToUse || !masteringEngineToUse) {
+            set({ error: 'Engines not available' });
+            return;
+          }
 
           try {
             console.log('Loading audio file...');
