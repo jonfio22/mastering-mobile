@@ -298,14 +298,17 @@ export const useAudioStore = create<AudioStore>()(
 
         // Audio File Management
         loadAudioFile: async (file: File) => {
+          console.log('loadAudioFile called with:', file);
           const { playbackEngine, masteringEngine } = get();
 
           if (!playbackEngine || !masteringEngine) {
+            console.error('Engines not initialized', { playbackEngine, masteringEngine });
             set({ error: 'Engines not initialized' });
             return;
           }
 
           try {
+            console.log('Loading audio file...');
             set({
               isLoading: true,
               error: null,

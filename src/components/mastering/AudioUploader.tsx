@@ -1,13 +1,23 @@
 import React, { useRef } from 'react';
 import { Upload, X, Music } from 'lucide-react';
 
-export default function AudioUploader({ audioFile, onFileSelect, onRemove }) {
-  const fileInputRef = useRef(null);
+interface AudioUploaderProps {
+  audioFile: File | null;
+  onFileSelect: (file: File) => void | Promise<void>;
+  onRemove: () => void;
+}
 
-  const handleFileChange = (e) => {
+export default function AudioUploader({ audioFile, onFileSelect, onRemove }: AudioUploaderProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    console.log('File selected:', file);
     if (file && file.type.startsWith('audio/')) {
+      console.log('Valid audio file, calling onFileSelect...');
       onFileSelect(file);
+    } else {
+      console.log('Invalid file or no file selected');
     }
   };
 

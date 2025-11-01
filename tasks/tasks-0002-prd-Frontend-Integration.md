@@ -40,15 +40,15 @@
   - [x] 1.5 Add TypeScript types for all store actions (loadAudio, updateEQ, updateCompressor, etc.)
   - [x] 1.6 Implement store persistence for user preferences and last-used settings using Zustand persist middleware
 
-- [ ] 2.0 Integrate Core Audio Playback Components
-  - [ ] 2.1 Refactor `AudioPlayer.tsx` to remove all Web Audio API code and replace with BaseAudioEngine instance from store
-  - [ ] 2.2 Connect play/pause/stop buttons to `engine.play()`, `engine.pause()`, `engine.stop()` methods
-  - [ ] 2.3 Implement seek bar functionality using `engine.seek(time)` with smooth scrubbing
-  - [ ] 2.4 Add time display showing `engine.getCurrentTime()` and `engine.getDuration()` with MM:SS format
-  - [ ] 2.5 Install and integrate Eleven Labs Waveform component for visual audio representation
-  - [ ] 2.6 Create `WaveformDisplay.tsx` component that shows waveform with zoom/scroll capabilities
-  - [ ] 2.7 Add playhead indicator to waveform that syncs with current playback position
-  - [ ] 2.8 Implement loop region selection on waveform for A/B comparison testing
+- [x] 2.0 Integrate Core Audio Playback Components
+  - [x] 2.1 Refactor `AudioPlayer.tsx` to remove all Web Audio API code and replace with BaseAudioEngine instance from store
+  - [x] 2.2 Connect play/pause/stop buttons to `engine.play()`, `engine.pause()`, `engine.stop()` methods
+  - [x] 2.3 Implement seek bar functionality using `engine.seek(time)` with smooth scrubbing
+  - [x] 2.4 Add time display showing `engine.getCurrentTime()` and `engine.getDuration()` with MM:SS format
+  - [x] 2.5 Install and integrate Eleven Labs Waveform component for visual audio representation
+  - [x] 2.6 Create `WaveformDisplay.tsx` component that shows waveform with zoom/scroll capabilities
+  - [x] 2.7 Add playhead indicator to waveform that syncs with current playback position
+  - [x] 2.8 Implement loop region selection on waveform for A/B comparison testing
 
 - [ ] 3.0 Connect Audio Processing Controls
   - [ ] 3.1 Update `EQSection.tsx` to accept engine from store and bind rotary knobs to actual parameters

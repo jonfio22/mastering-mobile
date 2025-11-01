@@ -5,6 +5,7 @@ import MonitorSection from '../components/mastering/MonitorSection';
 import MasterSection from '../components/mastering/MasterSection';
 import AudioUploader from '../components/mastering/AudioUploader';
 import AudioPlayer from '../components/mastering/AudioPlayer';
+import WaveformDisplay from '../components/mastering/WaveformDisplay';
 
 export default function MasteringDAW() {
   // Get store state and actions
@@ -19,13 +20,18 @@ export default function MasteringDAW() {
 
   // Initialize audio engines on mount
   useEffect(() => {
-    initializeEngines();
+    console.log('Initializing audio engines...');
+    initializeEngines().then(() => {
+      console.log('Audio engines initialized successfully');
+    }).catch((error) => {
+      console.error('Failed to initialize audio engines:', error);
+    });
 
     // Cleanup on unmount
     return () => {
       cleanupEngines();
     };
-  }, [initializeEngines, cleanupEngines]);
+  }, []); // Remove dependencies to prevent re-initialization
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 p-2 md:p-4">
@@ -88,7 +94,10 @@ export default function MasteringDAW() {
                 onRemove={unloadAudio}
               />
               {audioFile && (
-                <AudioPlayer />
+                <>
+                  <WaveformDisplay height={150} />
+                  <AudioPlayer />
+                </>
               )}
             </div>
           </div>
