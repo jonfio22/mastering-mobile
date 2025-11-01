@@ -20,12 +20,25 @@ export default function MasteringDAW() {
 
   // Initialize audio engines on mount
   useEffect(() => {
-    console.log('Initializing audio engines...');
-    initializeEngines().then(() => {
-      console.log('Audio engines initialized successfully');
-    }).catch((error) => {
-      console.error('Failed to initialize audio engines:', error);
-    });
+    console.log('Starting engine initialization...');
+    const init = async () => {
+      try {
+        await initializeEngines();
+        console.log('initializeEngines promise resolved');
+
+        // Check if engines are actually in the store
+        const state = useAudioStore.getState();
+        console.log('Current store state after init:', {
+          masteringEngine: !!state.masteringEngine,
+          playbackEngine: !!state.playbackEngine,
+          error: state.error
+        });
+      } catch (error) {
+        console.error('Failed to initialize audio engines:', error);
+      }
+    };
+
+    init();
 
     // Cleanup on unmount
     return () => {

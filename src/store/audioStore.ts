@@ -264,11 +264,25 @@ export const useAudioStore = create<AudioStore>()(
             await masteringEngine.initialize();
             await playbackEngine.initialize();
 
+            console.log('Engines initialized, storing in state:', {
+              masteringEngine: !!masteringEngine,
+              playbackEngine: !!playbackEngine,
+              aiAnalyzer: !!aiAnalyzer
+            });
+
             set({
               masteringEngine,
               playbackEngine,
               aiAnalyzer,
               isLoading: false,
+            });
+
+            // Verify they were stored
+            const newState = get();
+            console.log('Engines stored in state:', {
+              masteringEngine: !!newState.masteringEngine,
+              playbackEngine: !!newState.playbackEngine,
+              aiAnalyzer: !!newState.aiAnalyzer
             });
           } catch (error) {
             set({
@@ -299,11 +313,39 @@ export const useAudioStore = create<AudioStore>()(
         // Audio File Management
         loadAudioFile: async (file: File) => {
           console.log('loadAudioFile called with:', file);
-          const { playbackEngine, masteringEngine } = get();
+
+          // Get fresh state
+          const state = get();
+          const { playbackEngine, masteringEngine } = state;
+
+          console.log('Current engine state:', {
+            playbackEngine: !!playbackEngine,
+            masteringEngine: !!masteringEngine
+          });
 
           if (!playbackEngine || !masteringEngine) {
-            console.error('Engines not initialized', { playbackEngine, masteringEngine });
-            set({ error: 'Engines not initialized' });
+            console.error('Engines not initialized, trying to initialize now...');
+
+            // Try to initialize if not already done
+            await get().initializeEngines();
+
+            // Get fresh state again
+            const newState = get();
+
+            if (!newState.playbackEngine || !newState.masteringEngine) {
+              console.error('Still no engines after initialization attempt');
+              set({ error: 'Engines not initialized' });
+              return;
+            }
+          }
+
+          // Get engines again after potential initialization
+          const finalState = get();
+          const engineToUse = finalState.playbackEngine;
+          const masteringEngineToUse = finalState.masteringEngine;
+
+          if (!engineToUse || !masteringEngineToUse) {
+            set({ error: 'Engines not available' });
             return;
           }
 
@@ -316,10 +358,10 @@ export const useAudioStore = create<AudioStore>()(
             });
 
             // Load file into playback engine
-            await playbackEngine.loadAudio(file);
+            await engineToUse.loadAudio(file);
 
             // Get audio buffer for analysis
-            const audioBuffer = await playbackEngine.getAudioBuffer();
+            const audioBuffer = await engineToUse.getAudioBuffer();
 
             // Extract metadata
             const metadata: AudioMetadata = {
