@@ -114,23 +114,92 @@ class BaxandallEQProcessor extends AudioWorkletProcessor {
   /**
    * Update filter coefficients
    *
-   * DSP implementation in task 2.1
+   * Implements low-shelf and high-shelf biquad filters with proper
+   * gain linearization to ensure shelves are flat at opposite end
    */
   updateFilters() {
-    // TODO: Implement Baxandall EQ coefficient calculation
-    // This will be implemented in task 2.1
-    //
-    // Bass shelf filter coefficients based on:
-    // - this.params.bassGain (dB)
-    // - this.params.bassFreq (Hz)
-    // - this.sampleRate
-    //
-    // Treble shelf filter coefficients based on:
-    // - this.params.trebleGain (dB)
-    // - this.params.trebleFreq (Hz)
-    // - this.sampleRate
-    //
-    // Will use standard biquad shelf filter design equations
+    // Update bass (low-shelf) filter
+    this.updateShelfFilter(
+      this.params.bassGain,
+      this.params.bassFreq,
+      true, // isLowShelf
+      this.bassFilterL,
+      this.bassFilterR
+    );
+
+    // Update treble (high-shelf) filter
+    this.updateShelfFilter(
+      this.params.trebleGain,
+      this.params.trebleFreq,
+      false, // isHighShelf
+      this.trebleFilterL,
+      this.trebleFilterR
+    );
+  }
+
+  /**
+   * Calculate and apply shelf filter coefficients
+   * Uses standard biquad shelf formulation with proper gain scaling
+   */
+  updateShelfFilter(gainDb, freq, isLowShelf, filterL, filterR) {
+    // Skip if no gain
+    if (Math.abs(gainDb) < 0.01) {
+      // Set to unity gain (all-pass)
+      filterL.b0 = filterL.b1 = filterL.b2 = 1.0;
+      filterL.a1 = filterL.a2 = 0.0;
+      filterR.b0 = filterR.b1 = filterR.b2 = 1.0;
+      filterR.a1 = filterR.a2 = 0.0;
+      return;
+    }
+
+    // Convert gain from dB to linear
+    const A = Math.pow(10, gainDb / 40); // Sqrt of power gain for shelf filters
+
+    // Normalized frequency
+    const w0 = 2 * Math.PI * freq / this.sampleRate;
+    const sinW0 = Math.sin(w0);
+    const cosW0 = Math.cos(w0);
+
+    // Q factor for shelf (0.707 = Butterworth, provides smooth response)
+    const Q = 0.707;
+    const alpha = sinW0 / (2 * Q);
+
+    // Calculate coefficients
+    let b0, b1, b2, a0, a1, a2;
+
+    if (isLowShelf) {
+      // Low-shelf formula
+      const twosqrtA = 2 * Math.sqrt(A);
+      b0 = A * ((A + 1) - (A - 1) * cosW0 + twosqrtA * alpha);
+      b1 = 2 * A * ((A - 1) - (A + 1) * cosW0);
+      b2 = A * ((A + 1) - (A - 1) * cosW0 - twosqrtA * alpha);
+      a0 = (A + 1) + (A - 1) * cosW0 + twosqrtA * alpha;
+      a1 = -2 * ((A - 1) + (A + 1) * cosW0);
+      a2 = (A + 1) + (A - 1) * cosW0 - twosqrtA * alpha;
+    } else {
+      // High-shelf formula
+      const twosqrtA = 2 * Math.sqrt(A);
+      b0 = A * ((A + 1) + (A - 1) * cosW0 + twosqrtA * alpha);
+      b1 = -2 * A * ((A - 1) + (A + 1) * cosW0);
+      b2 = A * ((A + 1) + (A - 1) * cosW0 - twosqrtA * alpha);
+      a0 = (A + 1) - (A - 1) * cosW0 + twosqrtA * alpha;
+      a1 = 2 * ((A - 1) - (A + 1) * cosW0);
+      a2 = (A + 1) - (A - 1) * cosW0 - twosqrtA * alpha;
+    }
+
+    // Normalize coefficients
+    filterL.b0 = b0 / a0;
+    filterL.b1 = b1 / a0;
+    filterL.b2 = b2 / a0;
+    filterL.a1 = a1 / a0;
+    filterL.a2 = a2 / a0;
+
+    // Same for right channel
+    filterR.b0 = filterL.b0;
+    filterR.b1 = filterL.b1;
+    filterR.b2 = filterL.b2;
+    filterR.a1 = filterL.a1;
+    filterR.a2 = filterL.a2;
   }
 
   /**
@@ -198,12 +267,11 @@ class BaxandallEQProcessor extends AudioWorkletProcessor {
       for (let i = 0; i < blockSize; i++) {
         let sample = input[0][i];
 
-        // DSP implementation in task 2.1
         // Apply bass shelf filter
-        // sample = this.processBiquad(sample, this.bassFilterL);
+        sample = this.processBiquad(sample, this.bassFilterL);
 
         // Apply treble shelf filter
-        // sample = this.processBiquad(sample, this.trebleFilterL);
+        sample = this.processBiquad(sample, this.trebleFilterL);
 
         output[0][i] = sample;
       }
@@ -215,12 +283,11 @@ class BaxandallEQProcessor extends AudioWorkletProcessor {
         for (let i = 0; i < blockSize; i++) {
           let sample = input[1][i];
 
-          // DSP implementation in task 2.1
           // Apply bass shelf filter
-          // sample = this.processBiquad(sample, this.bassFilterR);
+          sample = this.processBiquad(sample, this.bassFilterR);
 
           // Apply treble shelf filter
-          // sample = this.processBiquad(sample, this.trebleFilterR);
+          sample = this.processBiquad(sample, this.trebleFilterR);
 
           output[1][i] = sample;
         }

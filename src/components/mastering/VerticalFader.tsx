@@ -1,14 +1,21 @@
 import React, { useState } from 'react';
 
-export default function VerticalFader({ 
-  label, 
-  value = 0, 
+interface VerticalFaderProps {
+  label: string;
+  value?: number;
+  onChange: (value: number) => void;
+  height?: string;
+}
+
+export default function VerticalFader({
+  label,
+  value = 0,
   onChange,
-  height = 'h-32' 
-}) {
+  height = 'h-32'
+}: VerticalFaderProps) {
   const [currentValue, setCurrentValue] = useState(value);
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = parseFloat(e.target.value);
     setCurrentValue(newValue);
     onChange?.(newValue);
@@ -55,7 +62,7 @@ export default function VerticalFader({
           value={currentValue}
           onChange={handleChange}
           className="absolute inset-0 opacity-0 cursor-pointer"
-          style={{ writingMode: 'bt-lr', WebkitAppearance: 'slider-vertical' }}
+          style={{ writingMode: 'vertical-lr' as React.CSSProperties['writingMode'], WebkitAppearance: 'slider-vertical' }}
         />
       </div>
 

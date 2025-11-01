@@ -5,17 +5,28 @@ import MonitorSection from '../components/mastering/MonitorSection';
 import MasterSection from '../components/mastering/MasterSection';
 import AudioUploader from '../components/mastering/AudioUploader';
 import AudioPlayer from '../components/mastering/AudioPlayer';
-import WaveformDisplay from '../components/mastering/WaveformDisplay';
+import PluginModal from '../components/mastering/PluginModal';
+import EQPlugin from '../components/mastering/plugins/EQPlugin';
+import LimiterPlugin from '../components/mastering/plugins/LimiterPlugin';
+import StereoPlugin from '../components/mastering/plugins/StereoPlugin';
+import TapePlugin from '../components/mastering/plugins/TapePlugin';
+import InputPlugin from '../components/mastering/plugins/InputPlugin';
+import OutputPlugin from '../components/mastering/plugins/OutputPlugin';
 
 export default function MasteringDAW() {
   // Get store state and actions
   const {
     audioFile,
     meteringData,
+    error,
+    isLoading,
     initializeEngines,
     cleanupEngines,
     loadAudioFile,
     unloadAudio,
+    clearError,
+    openPlugin,
+    closePluginModal,
   } = useAudioStore();
 
   // Initialize audio engines on mount
@@ -47,128 +58,85 @@ export default function MasteringDAW() {
   }, []); // Remove dependencies to prevent re-initialization
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 p-2 md:p-4">
-      {/* Wood frame effect */}
-      <div className="max-w-[1400px] mx-auto relative">
-        {/* Outer wood frame */}
-        <div 
-          className="absolute -inset-4 md:-inset-6 rounded-2xl"
-          style={{
-            background: `
-              linear-gradient(135deg, 
-                #8B4513 0%, 
-                #A0522D 25%, 
-                #8B4513 50%, 
-                #654321 75%, 
-                #8B4513 100%
-              )
-            `,
-            boxShadow: `
-              inset 0 0 20px rgba(0,0,0,0.5),
-              0 10px 40px rgba(0,0,0,0.8)
-            `
-          }}
-        >
-          {/* Wood grain texture */}
-          <div 
-            className="absolute inset-0 rounded-2xl opacity-30"
-            style={{
-              backgroundImage: `repeating-linear-gradient(
-                90deg,
-                transparent,
-                transparent 2px,
-                rgba(0,0,0,0.1) 2px,
-                rgba(0,0,0,0.1) 4px
-              )`
-            }}
-          />
-        </div>
-
-        {/* Main unit container */}
-        <div className="relative bg-gradient-to-b from-gray-800 via-gray-850 to-gray-900 rounded-xl shadow-2xl overflow-hidden border-4 border-gray-900">
-          {/* Top bar with branding */}
-          <div className="bg-gradient-to-b from-gray-700 to-gray-800 px-6 py-3 md:py-4 border-b-2 border-gray-900">
-            <div className="flex items-center justify-center gap-3">
-              <svg viewBox="0 0 50 30" className="w-10 h-6 md:w-12 md:h-8 fill-gray-300">
+    <div className="h-screen w-screen overflow-hidden bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 flex flex-col">
+      {/* Main unit container - fills entire viewport */}
+      <div className="flex-1 flex flex-col bg-gradient-to-b from-gray-800 via-gray-850 to-gray-900">
+          {/* Top bar with branding - more compact */}
+          <div className="bg-gradient-to-b from-gray-700 to-gray-800 px-4 py-2 border-b border-gray-900">
+            <div className="flex items-center justify-center gap-2">
+              <svg viewBox="0 0 50 30" className="w-8 h-5 fill-gray-300">
                 <path d="M5 15 L12 8 L12 22 Z M18 8 L25 15 L18 22 Z M32 8 L39 15 L32 22 Z M45 15 L38 8 L38 22 Z" />
               </svg>
-              <h1 className="text-lg md:text-2xl font-bold text-gray-100 tracking-widest">
+              <h1 className="text-base md:text-lg font-bold text-gray-100 tracking-widest">
                 MAESTRO MASTERING SUITE
               </h1>
             </div>
           </div>
 
-          {/* Audio Upload & Player Section */}
-          <div className="p-3 md:p-6 border-b-2 border-gray-900">
+          {/* Audio Upload & Player Section - more compact */}
+          <div className="p-2 md:p-3 border-b border-gray-900">
             <div className="max-w-2xl mx-auto space-y-3">
+              {/* Error Display - compact */}
+              {error && (
+                <div className="bg-red-900/20 border border-red-600 rounded p-2 flex items-center gap-2 text-xs">
+                  <span className="text-red-400">⚠️ {error}</span>
+                  <button onClick={clearError} className="text-red-400 hover:text-red-300 ml-auto">✕</button>
+                </div>
+              )}
+
+              {/* Loading State - compact */}
+              {isLoading && (
+                <div className="bg-blue-900/20 border border-blue-600 rounded p-2 flex items-center gap-2 text-xs">
+                  <div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-blue-400">Loading audio...</span>
+                </div>
+              )}
+
               <AudioUploader
                 audioFile={audioFile}
                 onFileSelect={loadAudioFile}
                 onRemove={unloadAudio}
               />
-              {audioFile && (
-                <>
-                  <WaveformDisplay height={150} />
-                  <AudioPlayer />
-                </>
-              )}
+              {audioFile && <AudioPlayer />}
             </div>
           </div>
 
-          {/* Main control panel */}
-          <div className="p-3 md:p-6">
+          {/* Main control panel - fills remaining space */}
+          <div className="flex-1 p-2 md:p-3 overflow-hidden">
             {/* Desktop layout - 3 columns */}
-            <div className="hidden lg:grid lg:grid-cols-[1fr_1.5fr_1fr] gap-6">
-              <EQSection />
-              <MonitorSection />
-              <MasterSection />
+            <div className="hidden lg:flex lg:gap-3 h-full">
+              <div className="flex-1"><EQSection /></div>
+              <div className="flex-[1.5]"><MonitorSection audioData={meteringData} /></div>
+              <div className="flex-1"><MasterSection /></div>
             </div>
 
             {/* Tablet layout - 2 columns */}
-            <div className="hidden md:grid lg:hidden grid-cols-2 gap-4">
+            <div className="hidden md:grid lg:hidden grid-cols-2 gap-2 h-full">
               <EQSection />
-              <MonitorSection />
+              <MonitorSection audioData={meteringData} />
               <div className="col-span-2">
                 <MasterSection />
               </div>
             </div>
 
             {/* Mobile layout - stacked */}
-            <div className="md:hidden flex flex-col gap-4">
-              <MonitorSection />
+            <div className="md:hidden flex flex-col gap-2 h-full overflow-y-auto">
+              <MonitorSection audioData={meteringData} />
               <EQSection />
               <MasterSection />
             </div>
           </div>
-
-          {/* Bottom edge detail */}
-          <div className="h-2 bg-gradient-to-b from-gray-900 to-black" />
-        </div>
-
-        {/* Screws in corners */}
-        {[
-          'top-2 left-2',
-          'top-2 right-2',
-          'bottom-2 left-2',
-          'bottom-2 right-2'
-        ].map((pos, i) => (
-          <div
-            key={i}
-            className={`absolute ${pos} w-3 h-3 md:w-4 md:h-4 rounded-full bg-gradient-to-br from-gray-600 to-gray-800 shadow-lg`}
-          >
-            <div className="absolute inset-0.5 rounded-full bg-gradient-to-br from-gray-700 to-gray-900">
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1 h-px bg-gray-600 rotate-45" />
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-px h-1 bg-gray-600 rotate-45" />
-            </div>
-          </div>
-        ))}
       </div>
 
-      {/* Footer info */}
-      <div className="text-center mt-8 text-gray-500 text-xs md:text-sm">
-        <p className="font-mono">MAESTRO MASTERING SUITE</p>
-        <p className="text-[10px] mt-1 opacity-70">Professional Grade Mobile Mastering</p>
-      </div>
+      {/* Plugin Modal */}
+      <PluginModal isOpen={!!openPlugin} onClose={closePluginModal}>
+        {openPlugin === 'eq' && <EQPlugin />}
+        {openPlugin === 'limiter' && <LimiterPlugin />}
+        {openPlugin === 'stereo' && <StereoPlugin />}
+        {openPlugin === 'tape' && <TapePlugin />}
+        {openPlugin === 'input' && <InputPlugin />}
+        {openPlugin === 'output' && <OutputPlugin />}
+      </PluginModal>
     </div>
   );
 }

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import VUMeter from './VUMeter';
 import RotaryKnob from './RotaryKnob';
 import HardwareButton from './HardwareButton';
+import { useAudioStore } from '@/store/audioStore';
 
 export default function MonitorSection({ audioData }) {
   const [eqGain, setEqGain] = useState(50);
@@ -10,9 +11,29 @@ export default function MonitorSection({ audioData }) {
   const [masterKnob, setMasterKnob] = useState(50);
   const [activePreset, setActivePreset] = useState(null);
 
-  const presetButtons = [
-    ['1', '2', '3', '4'],
-    ['5', '6', '7', '8']
+  // Get plugin state from audio store
+  const openPlugin = useAudioStore((state) => state.openPlugin);
+  const openPluginModal = useAudioStore((state) => state.openPluginModal);
+
+  // Track last tap time for double-tap detection
+  const lastTapTime = useRef({});
+
+  // Default values for knobs
+  const defaultValues = {
+    eqGain: 50,
+    monitor: 50,
+    redGain: 50,
+    masterKnob: 50
+  };
+
+  // Macro buttons for plugins
+  const macroButtons = [
+    { id: 'eq', label: 'EQ', icon: '═' },
+    { id: 'limiter', label: 'LIMITER', icon: '▮' },
+    { id: 'stereo', label: 'STEREO', icon: '◄►' },
+    { id: 'tape', label: 'TAPE', icon: '◉' },
+    { id: 'output', label: 'OUTPUT', icon: '▶' },
+    { id: 'input', label: 'INPUT', icon: '◀' }
   ];
 
   const controlButtons = [
@@ -21,12 +42,34 @@ export default function MonitorSection({ audioData }) {
     ['I', 'J', 'K', 'L']
   ];
 
+  // Handle double-tap for macro buttons
+  const handleMacroTap = (buttonId: string) => {
+    const now = Date.now();
+    const lastTap = lastTapTime.current[buttonId] || 0;
+
+    if (now - lastTap < 300) {
+      // Double tap detected - open plugin
+      openPluginModal(buttonId as any);
+      console.log(`Opening ${buttonId} plugin`);
+    }
+
+    lastTapTime.current[buttonId] = now;
+  };
+
+  // Handle option-click for reset (Alt key on Windows/Linux, Option key on Mac)
+  const handleKnobClick = (e, knobName, setter) => {
+    if (e.altKey) {
+      setter(defaultValues[knobName]);
+      e.preventDefault();
+    }
+  };
+
   // Use audio data for meters, default to 0
   const volumeValue = audioData?.volume || 0;
   const reductionValue = audioData?.volume ? audioData.volume * 0.7 : 0;
 
   return (
-    <div className="flex flex-col gap-4 p-4 bg-gradient-to-b from-gray-800 to-gray-900 rounded-lg border-2 border-gray-700">
+    <div className="flex flex-col gap-2 p-2 bg-gradient-to-b from-gray-800 to-gray-900 rounded-lg border-2 border-gray-700 h-full">
       {/* SOHO Centerpiece Header */}
       <div className="text-center border-b border-gray-700 pb-2">
         <div className="flex items-center justify-center gap-2">
@@ -41,117 +84,40 @@ export default function MonitorSection({ audioData }) {
       </div>
 
       {/* VU Meters */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2">
         <VUMeter label="VOLUME" type="volume" value={volumeValue} />
         <VUMeter label="GAIN REDUCTION" type="reduction" value={reductionValue} />
       </div>
 
-      {/* Control Knobs Row */}
-      <div className="grid grid-cols-3 gap-3 p-3 bg-gradient-to-b from-gray-900 to-gray-800 rounded-lg border border-gray-700">
-        <div className="flex flex-col items-center gap-2">
-          <RotaryKnob
-            label="EQ GAIN"
-            value={eqGain}
-            onChange={setEqGain}
-            size="medium"
-            color="burgundy"
-          />
-          <div className="grid grid-cols-2 gap-1 mt-1">
-            {presetButtons.map((row, i) => (
-              <React.Fragment key={i}>
-                {row.map((btn) => (
-                  <HardwareButton key={btn} label={btn} size="small" />
-                ))}
-              </React.Fragment>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex flex-col items-center gap-2">
-          <RotaryKnob
-            label="MONITOR"
-            value={monitor}
-            onChange={setMonitor}
-            size="medium"
-            color="blue"
-          />
-          <HardwareButton label="⟳" size="medium" />
-        </div>
-
-        <div className="flex flex-col items-center gap-2">
-          <RotaryKnob
-            label="RED GAIN"
-            value={redGain}
-            onChange={setRedGain}
-            size="medium"
-            color="burgundy"
-          />
-          <div className="flex items-center gap-1">
-            <span className="text-[8px] text-amber-400 font-mono">I/O:</span>
-            <span className="text-[8px] text-amber-400 font-bold font-mono">18/19</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Control Area */}
-      <div className="grid grid-cols-2 gap-3">
-        {/* Control Matrix */}
-        <div className="flex flex-col gap-2 p-3 bg-gradient-to-b from-gray-900 to-gray-800 rounded-lg border border-gray-700">
-          <RotaryKnob
-            value={masterKnob}
-            onChange={setMasterKnob}
-            size="large"
-            color="default"
-          />
-          
-          <div className="grid grid-cols-3 gap-1 mt-2">
-            {controlButtons.map((row, i) => (
-              <React.Fragment key={i}>
-                {row.map((btn) => (
-                  <HardwareButton 
-                    key={btn} 
-                    label={btn} 
-                    size="small"
-                    active={activePreset === btn}
-                    onClick={() => setActivePreset(activePreset === btn ? null : btn)}
-                  />
-                ))}
-              </React.Fragment>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-2 gap-1 mt-2">
-            <HardwareButton label="▶" size="small" />
-            <HardwareButton label="■" size="small" />
-          </div>
-        </div>
-
-        {/* Monitor Dial */}
-        <div className="flex flex-col items-center justify-center gap-3 p-3 bg-gradient-to-b from-gray-900 to-gray-800 rounded-lg border border-gray-700">
-          <div className="relative w-32 h-32 md:w-40 md:h-40">
-            {/* Large monitor knob */}
-            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-gray-600 via-gray-500 to-gray-700 shadow-2xl">
-              <div className="absolute inset-2 rounded-full bg-gradient-to-br from-gray-400 to-gray-600" />
-              <div className="absolute inset-4 rounded-full bg-gradient-to-br from-gray-300 to-gray-500 shadow-inner" />
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-gradient-to-br from-gray-800 to-gray-900 shadow-lg">
-                <div className="absolute inset-2 rounded-full bg-gradient-to-br from-gray-700 to-gray-800" />
-              </div>
+      {/* Macro Plugin Buttons */}
+      <div className="grid grid-cols-3 gap-2 p-3 bg-gradient-to-b from-gray-900 to-gray-800 rounded-lg border border-gray-700">
+        {macroButtons.map((button) => (
+          <button
+            key={button.id}
+            className={`
+              relative px-3 py-4 rounded-lg
+              bg-gradient-to-b from-gray-700 to-gray-800
+              border-2 border-gray-600
+              shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),0_1px_2px_rgba(255,255,255,0.1)]
+              hover:from-gray-650 hover:to-gray-750
+              active:shadow-[inset_0_4px_8px_rgba(0,0,0,0.7)]
+              transition-all duration-75
+              ${openPlugin === button.id ? 'ring-2 ring-emerald-500 bg-gradient-to-b from-emerald-900/30 to-gray-800' : ''}
+            `}
+            onClick={() => handleMacroTap(button.id)}
+            title={`Double-tap to open ${button.label}`}
+          >
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-lg text-gray-300">{button.icon}</span>
+              <span className="text-[8px] md:text-[9px] text-gray-400 font-bold tracking-wider uppercase">
+                {button.label}
+              </span>
             </div>
-          </div>
-          
-          <div className="flex gap-2">
-            <HardwareButton label="DIM" size="small" />
-            <HardwareButton label="TALK" size="small" />
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom Controls */}
-      <div className="flex justify-between items-center px-2">
-        <span className="text-[8px] text-gray-400 font-mono">MONITOR</span>
-        <span className="text-[8px] text-gray-400 font-mono flex items-center gap-1">
-          🎧 HEADPHONE
-        </span>
+            {openPlugin === button.id && (
+              <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+            )}
+          </button>
+        ))}
       </div>
     </div>
   );

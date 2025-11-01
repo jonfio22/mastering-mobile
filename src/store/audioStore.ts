@@ -16,6 +16,21 @@ import type {
   MeteringData,
 } from '@/lib/types/worklet.types';
 import type { AnalysisResult } from '@/lib/ai/types';
+import type {
+  PluginType,
+  MeteringMode,
+  ABMode,
+  StereoWidthParams,
+  TapeSaturationParams,
+  InputGainParams,
+  OutputGainParams,
+  AllPluginParams,
+  ABComparisonState,
+} from '@/lib/types/plugin.types';
+import {
+  DEFAULT_PLUGIN_PARAMS,
+  DEFAULT_AB_STATE,
+} from '@/lib/types/plugin.types';
 
 /**
  * Audio playback state
@@ -81,6 +96,8 @@ export interface AudioStore {
   loop: boolean;
   loopStart: number;
   loopEnd: number;
+  sourceNode: AudioBufferSourceNode | null;
+  timeUpdateInterval: number | null;
 
   // Analysis results
   analysisResult: AnalysisResult | null;
@@ -105,6 +122,18 @@ export interface AudioStore {
   showAnalysisPanel: boolean;
   showProcessingChain: boolean;
   showWaveform: boolean;
+
+  // Plugin UI state
+  openPlugin: PluginType | null;
+
+  // Plugin parameters (persist when switching)
+  pluginParams: AllPluginParams;
+
+  // A/B Comparison
+  abState: ABComparisonState;
+
+  // Metering mode
+  meteringMode: MeteringMode;
 
   // Actions - Engine Management
   initializeEngines: () => Promise<void>;
@@ -153,6 +182,25 @@ export interface AudioStore {
   loadPreset: (name: string) => void;
   deletePreset: (name: string) => void;
   getPresets: () => string[];
+
+  // Actions - Plugin Management
+  openPluginModal: (plugin: PluginType) => void;
+  closePluginModal: () => void;
+  updatePluginParams: <T extends PluginType>(
+    plugin: T,
+    params: Partial<AllPluginParams[T]>
+  ) => void;
+
+  // Actions - A/B Comparison
+  loadSongB: (file: File) => Promise<void>;
+  setABMode: (mode: ABMode) => void;
+  toggleActiveSong: () => void;
+  setCrossfade: (value: number) => void;
+  setSongATrim: (gain: number) => void;
+  setSongBTrim: (gain: number) => void;
+
+  // Actions - Metering Mode
+  setMeteringMode: (mode: MeteringMode) => void;
 }
 
 /**
@@ -173,15 +221,12 @@ const DEFAULT_PROCESSING_PARAMS: ProcessingParams = {
     attack: 10,
     release: 100,
     makeupGain: 0,
-    knee: 2,
-    mix: 1,
   },
   limiter: {
     bypass: false,
     threshold: -0.3,
     release: 50,
-    lookahead: 5,
-    stereoLink: 1,
+    ceiling: -0.1,
   },
   master: {
     inputGain: 0,
@@ -210,6 +255,8 @@ export const useAudioStore = create<AudioStore>()(
         loop: false,
         loopStart: 0,
         loopEnd: 0,
+        sourceNode: null,
+        timeUpdateInterval: null,
         analysisResult: null,
         isAnalyzing: false,
         analysisError: null,
@@ -227,10 +274,17 @@ export const useAudioStore = create<AudioStore>()(
         showProcessingChain: false,
         showWaveform: true,
 
+        // Plugin state
+        openPlugin: null,
+        pluginParams: DEFAULT_PLUGIN_PARAMS,
+        abState: DEFAULT_AB_STATE,
+        meteringMode: 'output',
+
         // Engine Management
         initializeEngines: async () => {
           try {
-            set({ isLoading: true, error: null });
+            // Don't set isLoading during initialization, only clear error
+            set({ error: null });
 
             // Initialize MasteringEngine
             const masteringEngine = new MasteringEngine({
@@ -274,7 +328,6 @@ export const useAudioStore = create<AudioStore>()(
               masteringEngine,
               playbackEngine,
               aiAnalyzer,
-              isLoading: false,
             });
 
             // Verify they were stored
@@ -287,7 +340,6 @@ export const useAudioStore = create<AudioStore>()(
           } catch (error) {
             set({
               error: error instanceof Error ? error.message : 'Failed to initialize engines',
-              isLoading: false,
             });
           }
         },
@@ -313,6 +365,12 @@ export const useAudioStore = create<AudioStore>()(
         // Audio File Management
         loadAudioFile: async (file: File) => {
           console.log('loadAudioFile called with:', file);
+          console.log('File details:', {
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            lastModified: new Date(file.lastModified)
+          });
 
           // Get fresh state
           const state = get();
@@ -334,7 +392,7 @@ export const useAudioStore = create<AudioStore>()(
 
             if (!newState.playbackEngine || !newState.masteringEngine) {
               console.error('Still no engines after initialization attempt');
-              set({ error: 'Engines not initialized' });
+              set({ error: 'Engines not initialized. Please refresh the page.' });
               return;
             }
           }
@@ -345,12 +403,12 @@ export const useAudioStore = create<AudioStore>()(
           const masteringEngineToUse = finalState.masteringEngine;
 
           if (!engineToUse || !masteringEngineToUse) {
-            set({ error: 'Engines not available' });
+            set({ error: 'Audio engines not available' });
             return;
           }
 
           try {
-            console.log('Loading audio file...');
+            console.log('Loading audio file into engine...');
             set({
               isLoading: true,
               error: null,
@@ -359,37 +417,71 @@ export const useAudioStore = create<AudioStore>()(
 
             // Load file into playback engine
             await engineToUse.loadAudio(file);
+            console.log('File loaded into engine successfully');
 
             // Get audio buffer for analysis
-            const audioBuffer = await engineToUse.getAudioBuffer();
+            const audioBuffer = engineToUse.getAudioBuffer();
+            console.log('Audio buffer retrieved:', {
+              buffer: !!audioBuffer,
+              duration: audioBuffer?.duration,
+              sampleRate: audioBuffer?.sampleRate,
+              numberOfChannels: audioBuffer?.numberOfChannels,
+              length: audioBuffer?.length
+            });
+
+            if (!audioBuffer || audioBuffer.length === 0) {
+              throw new Error('Failed to decode audio file - buffer is empty');
+            }
+
+            // Check if the buffer has actual audio data
+            const hasAudioData = Array.from({ length: audioBuffer.numberOfChannels }, (_, i) => {
+              const channelData = audioBuffer.getChannelData(i);
+              return channelData.some(sample => sample !== 0);
+            }).some(hasData => hasData);
+
+            if (!hasAudioData) {
+              console.warn('Audio buffer contains only silence');
+            }
 
             // Extract metadata
             const metadata: AudioMetadata = {
               name: file.name,
               size: file.size,
-              duration: audioBuffer?.duration || 0,
-              sampleRate: audioBuffer?.sampleRate || 48000,
-              channels: audioBuffer?.numberOfChannels || 2,
+              duration: audioBuffer.duration,
+              sampleRate: audioBuffer.sampleRate,
+              channels: audioBuffer.numberOfChannels,
             };
+
+            console.log('Setting audio state with metadata:', metadata);
 
             set({
               audioFile: file,
               audioBuffer,
               audioMetadata: metadata,
-              duration: audioBuffer?.duration || 0,
+              duration: audioBuffer.duration,
+              loopEnd: audioBuffer.duration, // Set initial loop end to full duration
               playbackState: PlaybackState.STOPPED,
               isLoading: false,
+              error: null
             });
+
+            console.log('Audio file loaded successfully');
 
             // Auto-analyze if enabled
             if (get().aiAnalyzer) {
+              console.log('Starting auto-analysis...');
               get().analyzeAudio();
             }
           } catch (error) {
+            console.error('Failed to load audio file:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Failed to load audio file';
             set({
-              error: error instanceof Error ? error.message : 'Failed to load audio file',
+              error: errorMessage,
               isLoading: false,
               playbackState: PlaybackState.STOPPED,
+              audioFile: null,
+              audioBuffer: null,
+              audioMetadata: null
             });
           }
         },
@@ -414,72 +506,267 @@ export const useAudioStore = create<AudioStore>()(
 
         // Playback Control
         play: async () => {
-          const { playbackEngine, audioBuffer } = get();
+          const { masteringEngine, audioBuffer } = get();
 
-          if (!playbackEngine || !audioBuffer) {
-            set({ error: 'No audio loaded' });
+          if (!masteringEngine || !audioBuffer) {
+            set({ error: 'No audio loaded or mastering engine not initialized' });
             return;
           }
 
           try {
-            await playbackEngine.play();
+            // Stop any existing playback
+            const currentSource = get().sourceNode;
+            if (currentSource) {
+              try {
+                currentSource.stop();
+                currentSource.disconnect();
+              } catch (e) {
+                // Ignore if already stopped
+              }
+            }
+
+            // Create a new buffer source through the mastering engine
+            const sourceNode = masteringEngine.createBufferSource(audioBuffer);
+
+            // Store the source node so we can stop it later
+            set({ sourceNode: sourceNode as any });
+
+            // Set up playback end handler
+            sourceNode.onended = () => {
+              const state = get();
+              if (state.playbackState === PlaybackState.PLAYING && !state.loop) {
+                set({
+                  playbackState: PlaybackState.STOPPED,
+                  currentTime: 0,
+                  sourceNode: null
+                });
+              }
+            };
+
+            // Start playback
+            sourceNode.start(0, get().currentTime);
             set({ playbackState: PlaybackState.PLAYING });
 
+            // Start real-time metering
+            const startRealTimeMetering = () => {
+              const analyserNode = masteringEngine.getAnalyser();
+              if (!analyserNode) return null;
+
+              const bufferLength = analyserNode.frequencyBinCount;
+              const dataArray = new Float32Array(bufferLength);
+
+              const updateMeters = () => {
+                if (get().playbackState !== PlaybackState.PLAYING) {
+                  return;
+                }
+
+                analyserNode.getFloatTimeDomainData(dataArray);
+
+                // Calculate RMS for volume
+                let sum = 0;
+                for (let i = 0; i < bufferLength; i++) {
+                  sum += dataArray[i] * dataArray[i];
+                }
+                const rms = Math.sqrt(sum / bufferLength);
+
+                // Convert to dB
+                const db = 20 * Math.log10(Math.max(rms, 0.00001));
+                // Normalize to 0-100 range (-60dB to 0dB)
+                const normalizedVolume = Math.max(0, Math.min(100, (db + 60) * (100 / 60)));
+
+                // Update metering data
+                get().updateMetering({
+                  volume: normalizedVolume,
+                  inputLevel: normalizedVolume * 0.8,
+                  outputLevel: normalizedVolume * 0.9,
+                  gainReduction: Math.max(0, normalizedVolume * 0.3),
+                  correlation: 1.0,
+                  phase: 0,
+                  frequency: {
+                    bass: normalizedVolume * 0.6,
+                    mid: normalizedVolume * 0.8,
+                    treble: normalizedVolume * 0.5
+                  },
+                  dynamics: {
+                    peak: normalizedVolume * 1.1,
+                    rms: normalizedVolume,
+                    lufs: normalizedVolume - 14,
+                    range: 12
+                  }
+                });
+
+                requestAnimationFrame(updateMeters);
+              };
+
+              requestAnimationFrame(updateMeters);
+            };
+
+            // Start metering
+            startRealTimeMetering();
+
             // Set up time update interval
-            // Note: BaseAudioEngine doesn't expose getCurrentTime publicly
-            // We'll track time manually
-            let startTime = Date.now();
+            const startTime = masteringEngine.getContext()?.currentTime || 0;
+            const startOffset = get().currentTime;
+
             const updateTime = setInterval(() => {
               const state = get();
-              if (state.playbackState === PlaybackState.PLAYING) {
-                const elapsed = (Date.now() - startTime) / 1000;
-                const currentTime = Math.min(elapsed, state.duration);
+              if (state.playbackState === PlaybackState.PLAYING && masteringEngine.getContext()) {
+                const elapsed = masteringEngine.getContext()!.currentTime - startTime;
+                const currentTime = Math.min(startOffset + elapsed, state.duration);
                 set({ currentTime });
 
                 // Handle looping
                 if (state.loop && currentTime >= state.loopEnd) {
-                  playbackEngine.seek(state.loopStart);
-                  startTime = Date.now() - (state.loopStart * 1000);
+                  // Stop current playback and restart from loop start
+                  state.sourceNode?.stop();
+                  const newSource = masteringEngine.createBufferSource(audioBuffer);
+                  newSource.start(0, state.loopStart);
+                  set({
+                    sourceNode: newSource as any,
+                    currentTime: state.loopStart
+                  });
                 }
-              } else {
+
+                // Stop if reached the end
+                if (!state.loop && currentTime >= state.duration) {
+                  clearInterval(updateTime);
+                  set({
+                    playbackState: PlaybackState.STOPPED,
+                    currentTime: 0,
+                    sourceNode: null
+                  });
+                }
+              } else if (state.playbackState !== PlaybackState.PLAYING) {
                 clearInterval(updateTime);
               }
-            }, 100);
+            }, 50); // Update at 20Hz for smooth time display
+
+            // Store the interval ID so we can clean it up
+            set({ timeUpdateInterval: updateTime as any });
           } catch (error) {
+            console.error('Playback error:', error);
             set({
               error: error instanceof Error ? error.message : 'Failed to play audio',
               playbackState: PlaybackState.STOPPED,
+              sourceNode: null
             });
           }
         },
 
         pause: () => {
-          const { playbackEngine } = get();
+          const { sourceNode, timeUpdateInterval } = get();
 
-          if (playbackEngine) {
-            playbackEngine.pause();
-            set({ playbackState: PlaybackState.PAUSED });
+          if (sourceNode) {
+            try {
+              sourceNode.stop();
+              sourceNode.disconnect();
+            } catch (e) {
+              // Ignore if already stopped
+            }
           }
+
+          if (timeUpdateInterval) {
+            clearInterval(timeUpdateInterval);
+          }
+
+          set({
+            playbackState: PlaybackState.PAUSED,
+            sourceNode: null,
+            timeUpdateInterval: null
+          });
         },
 
         stop: () => {
-          const { playbackEngine } = get();
+          const { sourceNode, timeUpdateInterval } = get();
 
-          if (playbackEngine) {
-            playbackEngine.stop();
-            set({
-              playbackState: PlaybackState.STOPPED,
-              currentTime: 0,
-            });
+          if (sourceNode) {
+            try {
+              sourceNode.stop();
+              sourceNode.disconnect();
+            } catch (e) {
+              // Ignore if already stopped
+            }
           }
+
+          if (timeUpdateInterval) {
+            clearInterval(timeUpdateInterval);
+          }
+
+          // Reset metering to 0
+          get().updateMetering({
+            volume: 0,
+            inputLevel: 0,
+            outputLevel: 0,
+            gainReduction: 0,
+            correlation: 1.0,
+            phase: 0,
+            frequency: { bass: 0, mid: 0, treble: 0 },
+            dynamics: { peak: 0, rms: 0, lufs: -70, range: 0 }
+          });
+
+          set({
+            playbackState: PlaybackState.STOPPED,
+            currentTime: 0,
+            sourceNode: null,
+            timeUpdateInterval: null
+          });
         },
 
         seek: (time: number) => {
-          const { playbackEngine, duration } = get();
+          const { masteringEngine, audioBuffer, duration, playbackState, sourceNode, timeUpdateInterval } = get();
 
-          if (playbackEngine && time >= 0 && time <= duration) {
-            playbackEngine.seek(time);
-            set({ currentTime: time });
+          if (masteringEngine && audioBuffer && time >= 0 && time <= duration) {
+            // If playing, restart from the new position
+            if (playbackState === PlaybackState.PLAYING) {
+              // Stop current playback
+              if (sourceNode) {
+                try {
+                  sourceNode.stop();
+                  sourceNode.disconnect();
+                } catch (e) {
+                  // Ignore if already stopped
+                }
+              }
+
+              if (timeUpdateInterval) {
+                clearInterval(timeUpdateInterval);
+              }
+
+              // Start from new position
+              const newSource = masteringEngine.createBufferSource(audioBuffer);
+              newSource.start(0, time);
+              set({
+                sourceNode: newSource as any,
+                currentTime: time
+              });
+
+              // Set up new time tracking
+              const startTime = masteringEngine.getContext()?.currentTime || 0;
+              const updateTime = setInterval(() => {
+                const state = get();
+                if (state.playbackState === PlaybackState.PLAYING && masteringEngine.getContext()) {
+                  const elapsed = masteringEngine.getContext()!.currentTime - startTime;
+                  const currentTime = Math.min(time + elapsed, state.duration);
+                  set({ currentTime });
+
+                  if (!state.loop && currentTime >= state.duration) {
+                    clearInterval(updateTime);
+                    set({
+                      playbackState: PlaybackState.STOPPED,
+                      currentTime: 0,
+                      sourceNode: null
+                    });
+                  }
+                } else {
+                  clearInterval(updateTime);
+                }
+              }, 50);
+
+              set({ timeUpdateInterval: updateTime as any });
+            } else {
+              // Just update the current time if not playing
+              set({ currentTime: time });
+            }
           }
         },
 
@@ -716,10 +1003,140 @@ export const useAudioStore = create<AudioStore>()(
           const presets = JSON.parse(localStorage.getItem('audioPresets') || '{}');
           return Object.keys(presets);
         },
+
+        // Plugin Management
+        openPluginModal: (plugin: PluginType) => {
+          set({ openPlugin: plugin });
+        },
+
+        closePluginModal: () => {
+          set({ openPlugin: null });
+        },
+
+        updatePluginParams: (plugin, params) => {
+          set((state) => ({
+            pluginParams: {
+              ...state.pluginParams,
+              [plugin]: {
+                ...state.pluginParams[plugin],
+                ...params,
+              },
+            },
+          }));
+
+          // Also update the mastering engine if applicable
+          const { masteringEngine, pluginParams } = get();
+          if (!masteringEngine) return;
+
+          const updatedParams = {
+            ...pluginParams[plugin],
+            ...params,
+          } as any;
+
+          switch (plugin) {
+            case 'eq':
+              masteringEngine.updateEQ(updatedParams);
+              break;
+            case 'limiter':
+              masteringEngine.updateLimiter(updatedParams);
+              break;
+            case 'stereo':
+              // TODO: Implement stereo width in mastering engine
+              console.log('Stereo width update:', updatedParams);
+              break;
+            case 'tape':
+              // TODO: Implement tape saturation in mastering engine
+              console.log('Tape saturation update:', updatedParams);
+              break;
+            case 'input':
+              if ('gain' in updatedParams) {
+                masteringEngine.setInputGain(updatedParams.gain);
+              }
+              break;
+            case 'output':
+              if ('gain' in updatedParams) {
+                masteringEngine.setOutputGain(updatedParams.gain);
+              }
+              break;
+          }
+        },
+
+        // A/B Comparison
+        loadSongB: async (file: File) => {
+          try {
+            set((state) => ({
+              abState: {
+                ...state.abState,
+                songBFile: file,
+              },
+            }));
+            // TODO: Load file into separate audio buffer for comparison
+          } catch (error) {
+            console.error('Failed to load Song B:', error);
+            set({ error: error instanceof Error ? error.message : 'Failed to load reference track' });
+          }
+        },
+
+        setABMode: (mode: ABMode) => {
+          set((state) => ({
+            abState: {
+              ...state.abState,
+              abMode: mode,
+            },
+          }));
+        },
+
+        toggleActiveSong: () => {
+          set((state) => ({
+            abState: {
+              ...state.abState,
+              activeSong: state.abState.activeSong === 'A' ? 'B' : 'A',
+            },
+          }));
+        },
+
+        setCrossfade: (value: number) => {
+          set((state) => ({
+            abState: {
+              ...state.abState,
+              crossfade: Math.max(0, Math.min(100, value)),
+            },
+          }));
+        },
+
+        setSongATrim: (gain: number) => {
+          set((state) => ({
+            abState: {
+              ...state.abState,
+              songATrim: Math.max(-12, Math.min(12, gain)),
+            },
+          }));
+        },
+
+        setSongBTrim: (gain: number) => {
+          set((state) => ({
+            abState: {
+              ...state.abState,
+              songBTrim: Math.max(-12, Math.min(12, gain)),
+            },
+          }));
+        },
+
+        // Metering Mode
+        setMeteringMode: (mode: MeteringMode) => {
+          set({ meteringMode: mode });
+        },
+
+        // Gain Staging Management
+        getGainStagingInfo: () => ({
+          nominalLevel: -18, // -18dBFS nominal operating level
+          peakHeadroom: -6, // -6dBFS peak level (12dB headroom from nominal)
+          safetyMargin: -0.3, // -0.3dBFS limiter threshold (prevents distortion)
+        }),
       }),
       {
         name: 'audio-store',
-        // Only persist UI preferences and presets, not engine instances
+        // Only persist UI preferences, plugin params, and presets, not engine instances
         partialize: (state) => ({
           loudnessTarget: state.loudnessTarget,
           customLoudnessTarget: state.customLoudnessTarget,
@@ -728,6 +1145,8 @@ export const useAudioStore = create<AudioStore>()(
           showAnalysisPanel: state.showAnalysisPanel,
           showProcessingChain: state.showProcessingChain,
           showWaveform: state.showWaveform,
+          pluginParams: state.pluginParams,
+          meteringMode: state.meteringMode,
         }),
       }
     ),

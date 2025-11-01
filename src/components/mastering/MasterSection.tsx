@@ -11,7 +11,7 @@ export default function MasterSection() {
   const [loopSection, setLoopSection] = useState(false);
 
   return (
-    <div className="flex flex-col gap-4 p-4 bg-gradient-to-b from-gray-800 to-gray-900 rounded-lg border-2 border-gray-700">
+    <div className="flex flex-col gap-1 p-2 bg-gradient-to-b from-gray-800 to-gray-900 rounded-lg border-2 border-gray-700 h-full">
       {/* Header */}
       <div className="text-center border-b border-gray-700 pb-2">
         <h3 className="text-[10px] md:text-xs text-gray-300 font-bold tracking-wider">
@@ -89,63 +89,6 @@ export default function MasterSection() {
             }}
           />
         </div>
-      </div>
-
-      {/* LUFS Target */}
-      <div className="flex flex-col gap-2 p-3 bg-gradient-to-b from-gray-900 to-gray-800 rounded-lg border border-gray-700">
-        <span className="text-[9px] text-gray-300 font-mono uppercase text-center">
-          LUFS Target
-        </span>
-        
-        {/* LUFS Meter */}
-        <div className="relative h-20 bg-gradient-to-b from-gray-950 to-gray-900 rounded border border-gray-800">
-          <div className="absolute inset-0 flex flex-col justify-between p-1 text-[7px] text-gray-500 font-mono">
-            {['-6', '-9', '-12', '-14', '-16'].map((lufs) => (
-              <div key={lufs} className="flex items-center justify-between">
-                <span>{lufs}</span>
-                <div className="w-1 h-px bg-gray-700" />
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Status Indicators */}
-        <div className="grid grid-cols-3 gap-1 mt-2">
-          <button
-            onClick={() => setPeakTrack(!peakTrack)}
-            className="flex flex-col items-center gap-1"
-          >
-            <div className={`w-2 h-2 rounded-full ${peakTrack ? 'bg-red-500 shadow-lg shadow-red-500/50' : 'bg-gray-700'}`} />
-            <span className="text-[7px] text-gray-400 font-mono">PEAK TRACK</span>
-          </button>
-          
-          <button
-            onClick={() => setOther(!other)}
-            className="flex flex-col items-center gap-1"
-          >
-            <div className={`w-2 h-2 rounded-full ${other ? 'bg-amber-500 shadow-lg shadow-amber-500/50' : 'bg-gray-700'}`} />
-            <span className="text-[7px] text-gray-400 font-mono">OTHER</span>
-          </button>
-          
-          <button
-            onClick={() => setLoopSection(!loopSection)}
-            className="flex flex-col items-center gap-1"
-          >
-            <div className={`w-2 h-2 rounded-full ${loopSection ? 'bg-purple-500 shadow-lg shadow-purple-500/50' : 'bg-gray-700'}`} />
-            <span className="text-[7px] text-gray-400 font-mono">LOOP SECTION</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Analyze Knob */}
-      <div className="flex justify-center p-3 bg-gradient-to-b from-gray-900 to-gray-800 rounded-lg border border-gray-700">
-        <RotaryKnob
-          label="ANALYZE"
-          value={analyze}
-          onChange={setAnalyze}
-          size="medium"
-          color="default"
-        />
       </div>
     </div>
   );

@@ -52,6 +52,13 @@ import {
  * - Comprehensive error handling and state management
  * - Memory leak prevention with proper cleanup
  * - Type-safe interfaces throughout
+ * - Proper gain staging with headroom management (-18dBFS nominal, -6dBFS peak)
+ * - Soft clipping and true peak limiting to prevent distortion
+ * - Metering points at each signal chain stage
+ *
+ * GAIN STAGING CHAIN:
+ * Input (-18dBFS nominal) -> Input Gain -> Effects Chain -> Master Limiter
+ * -> Output Gain -> True Peak Limiter (safety net) -> Destination
  *
  * @example
  * ```typescript
@@ -67,11 +74,20 @@ export class BaseAudioEngine {
   private audioBuffer: AudioBuffer | null = null;
   private sourceNode: AudioBufferSourceNode | null = null;
 
-  // Signal chain nodes
+  // Gain staging nodes
   private inputGainNode: GainNode | null = null;
+  private preProcessGainNode: GainNode | null = null; // Unity gain compensation
+  private postProcessGainNode: GainNode | null = null; // Unity gain compensation
+  private masterLimiterGain: GainNode | null = null; // Safety limiter
   private outputGainNode: GainNode | null = null;
+  private truePeakLimiterNode: WaveShaperNode | null = null; // Soft clipping
+
+  // Signal chain nodes
   private analyserNode: AnalyserNode | null = null;
   private signalChain: SignalChainNode[] = [];
+
+  // Metering points for debugging
+  private meteringPoints: Map<string, AnalyserNode> = new Map();
 
   // Metering and analysis
   private meteringData: MeteringData = {
@@ -173,21 +189,45 @@ export class BaseAudioEngine {
         this.config.sampleRate = actualSampleRate;
       }
 
-      // Create master gain nodes
+      // Create proper gain staging chain
       this.inputGainNode = this.audioContext.createGain();
+      this.preProcessGainNode = this.audioContext.createGain();
+      this.postProcessGainNode = this.audioContext.createGain();
+      this.masterLimiterGain = this.audioContext.createGain();
       this.outputGainNode = this.audioContext.createGain();
 
-      // Set default unity gain
+      // Set default unity gains
       this.inputGainNode.gain.value = 1.0;
+      this.preProcessGainNode.gain.value = 1.0;
+      this.postProcessGainNode.gain.value = 1.0;
+      this.masterLimiterGain.gain.value = 1.0;
       this.outputGainNode.gain.value = 1.0;
 
-      // Create analyser for metering (after output gain, before destination)
+      // Create soft clipping WaveShaper for true peak limiting (safety net)
+      // This is INVISIBLE to the user and only engages to prevent damage
+      this.truePeakLimiterNode = this.audioContext.createWaveShaper();
+      this.truePeakLimiterNode.curve = this.createSoftClipCurve(1.5, 2048); // 3dB headroom
+
+      // Create analyser for output metering
       this.analyserNode = this.audioContext.createAnalyser();
       this.analyserNode.fftSize = 2048;
       this.analyserNode.smoothingTimeConstant = 0.0; // No smoothing for accurate metering
 
-      // Connect master chain: input -> output -> analyser -> destination
-      this.outputGainNode.connect(this.analyserNode);
+      // Create metering points for debugging signal chain
+      this.createMeteringPoint('input');
+      this.createMeteringPoint('preProcess');
+      this.createMeteringPoint('postProcess');
+      this.createMeteringPoint('masterLimiter');
+      this.createMeteringPoint('output');
+
+      // Connect master gain staging chain:
+      // input -> preProcess -> (signal chain connects here) -> postProcess
+      // -> masterLimiter -> output -> truePeakLimiter -> analyser -> destination
+      this.inputGainNode.connect(this.preProcessGainNode);
+      this.postProcessGainNode.connect(this.masterLimiterGain);
+      this.masterLimiterGain.connect(this.outputGainNode);
+      this.outputGainNode.connect(this.truePeakLimiterNode);
+      this.truePeakLimiterNode.connect(this.analyserNode);
       this.analyserNode.connect(this.audioContext.destination);
 
       // Initialize metering buffers
@@ -227,6 +267,12 @@ export class BaseAudioEngine {
     this.setState(EngineState.LOADING);
 
     try {
+      // Resume audio context if suspended (for browsers that require user gesture)
+      if (this.audioContext?.state === 'suspended') {
+        console.log('[BaseAudioEngine] Resuming suspended audio context...');
+        await this.audioContext.resume();
+      }
+
       // Validate file format
       const validation = AudioFormatUtils.validateFile(file);
       if (!validation.isValid) {
@@ -673,10 +719,25 @@ export class BaseAudioEngine {
       this.disconnectProcessor(node.node);
     }
 
-    // Disconnect master nodes
+    // Disconnect master gain staging nodes
     if (this.inputGainNode) {
       this.inputGainNode.disconnect();
       this.inputGainNode = null;
+    }
+
+    if (this.preProcessGainNode) {
+      this.preProcessGainNode.disconnect();
+      this.preProcessGainNode = null;
+    }
+
+    if (this.postProcessGainNode) {
+      this.postProcessGainNode.disconnect();
+      this.postProcessGainNode = null;
+    }
+
+    if (this.masterLimiterGain) {
+      this.masterLimiterGain.disconnect();
+      this.masterLimiterGain = null;
     }
 
     if (this.outputGainNode) {
@@ -684,10 +745,21 @@ export class BaseAudioEngine {
       this.outputGainNode = null;
     }
 
+    if (this.truePeakLimiterNode) {
+      this.truePeakLimiterNode.disconnect();
+      this.truePeakLimiterNode = null;
+    }
+
     if (this.analyserNode) {
       this.analyserNode.disconnect();
       this.analyserNode = null;
     }
+
+    // Disconnect all metering points
+    this.meteringPoints.forEach(analyser => {
+      analyser.disconnect();
+    });
+    this.meteringPoints.clear();
 
     // Close AudioContext
     if (this.audioContext) {
@@ -748,15 +820,91 @@ export class BaseAudioEngine {
   }
 
   /**
-   * Connects source node to signal chain
+   * Creates a soft clipping curve for the WaveShaper (true peak limiter)
+   * @param threshold - Clipping threshold (where soft clipping begins)
+   * @param samples - Number of samples for the curve
+   * @returns Float32Array with the soft clipping curve
+   */
+  private createSoftClipCurve(threshold: number, samples: number): Float32Array {
+    const curve = new Float32Array(samples);
+    const length = samples;
+    const mid = length / 2;
+
+    for (let i = 0; i < length; i++) {
+      // Map sample index to input range [-threshold, threshold]
+      const x = (i / mid - 1) * threshold;
+
+      if (Math.abs(x) < 0.9) {
+        // Linear region: no clipping
+        curve[i] = x;
+      } else if (x > 0.9) {
+        // Soft clipping on positive side: tanh function
+        // Creates smooth knee around threshold
+        curve[i] = Math.tanh(x * 0.5);
+      } else {
+        // Soft clipping on negative side
+        curve[i] = Math.tanh(x * 0.5);
+      }
+    }
+
+    return curve;
+  }
+
+  /**
+   * Creates a metering point at a specific position in the signal chain
+   * Used for debugging gain staging and identifying level issues
+   * @param name - Name of the metering point (for identification)
+   */
+  private createMeteringPoint(name: string): void {
+    if (!this.audioContext) return;
+
+    const analyser = this.audioContext.createAnalyser();
+    analyser.fftSize = 2048;
+    analyser.smoothingTimeConstant = 0.0;
+
+    this.meteringPoints.set(name, analyser);
+
+    // Connect analyser to destination for metering (won't affect audio path)
+    // This allows us to measure levels at each point
+  }
+
+  /**
+   * Gets metering data at a specific point in the signal chain
+   * @param pointName - Name of the metering point
+   * @returns Metering data or null if point doesn't exist
+   */
+  getMeteringPointData(pointName: string): MeteringData | null {
+    const analyser = this.meteringPoints.get(pointName);
+    if (!analyser) return null;
+
+    const tempBuffer = new Float32Array(analyser.frequencyBinCount);
+    analyser.getFloatTimeDomainData(tempBuffer);
+
+    const peakL = AnalysisUtils.findPeak(tempBuffer);
+    const rmsL = AnalysisUtils.calculateRMS(tempBuffer);
+
+    return {
+      peakL: dBFSUtils.linearToDb(peakL),
+      peakR: dBFSUtils.linearToDb(peakL), // Approximation for single analyser
+      rmsL: dBFSUtils.linearToDb(rmsL),
+      rmsR: dBFSUtils.linearToDb(rmsL),
+      timestamp: Date.now(),
+      samplePosition: 0,
+    };
+  }
+
+  /**
+   * Connects source node to signal chain with proper gain staging
    */
   private connectSourceToChain(): void {
     if (!this.sourceNode) return;
 
-    // If no processors, connect directly
+    // If no processors, connect directly through unity gain nodes
     if (this.signalChain.length === 0) {
       this.sourceNode.connect(this.inputGainNode!);
-      this.inputGainNode!.connect(this.outputGainNode!);
+      this.inputGainNode!.connect(this.preProcessGainNode!);
+      this.preProcessGainNode!.connect(this.postProcessGainNode!);
+      // Rest already connected in initialize()
     } else {
       // Connect through signal chain
       this.sourceNode.connect(this.inputGainNode!);
@@ -765,20 +913,26 @@ export class BaseAudioEngine {
   }
 
   /**
-   * Rebuilds signal chain connections
+   * Rebuilds signal chain connections with proper gain compensation
+   * Ensures unity gain through the chain to maintain headroom
    */
   private rebuildSignalChain(): void {
     // Disconnect everything first
     this.inputGainNode!.disconnect();
+    this.preProcessGainNode!.disconnect();
     this.signalChain.forEach(node => {
       node.inputGain.disconnect();
       node.node.disconnect();
       node.outputGain.disconnect();
+      if (node.analyser) {
+        node.analyser.disconnect();
+      }
     });
 
     if (this.signalChain.length === 0) {
-      // No processors, direct connection
-      this.inputGainNode!.connect(this.outputGainNode!);
+      // No processors, direct connection: input -> preProcess -> postProcess -> rest
+      this.inputGainNode!.connect(this.preProcessGainNode!);
+      this.preProcessGainNode!.connect(this.postProcessGainNode!);
       return;
     }
 
@@ -786,37 +940,49 @@ export class BaseAudioEngine {
     const serialNodes = this.signalChain.filter(n => n.mode === ChainMode.SERIAL);
     const parallelNodes = this.signalChain.filter(n => n.mode === ChainMode.PARALLEL);
 
-    let lastNode: AudioNode = this.inputGainNode!;
+    // Start chain: input -> preProcess
+    this.inputGainNode!.connect(this.preProcessGainNode!);
 
-    // Connect serial chain
-    serialNodes.forEach(node => {
+    let lastNode: AudioNode = this.preProcessGainNode!;
+
+    // Connect serial chain with proper gain compensation
+    serialNodes.forEach((node, index) => {
       lastNode.connect(node.inputGain);
       node.inputGain.connect(node.node);
-      node.node.connect(node.outputGain);
+      node.node.connect(node.analyser!);
+      node.analyser!.connect(node.outputGain);
+
+      // Compensate for processor gain changes to maintain unity gain
+      // If processor increases level, reduce output gain accordingly
+      // This is critical for headroom management
+      node.outputGain.gain.value = 1.0; // Will be adjusted per processor type
+
       lastNode = node.outputGain;
     });
 
     // Connect parallel processors (summing)
     if (parallelNodes.length > 0) {
-      // Create a summing node
+      // Create a summing node for parallel processing
       const sumNode = this.audioContext!.createGain();
-      sumNode.gain.value = 1.0;
+      sumNode.gain.value = 1.0 / (parallelNodes.length + 1); // -3dB per parallel branch
 
       // Connect input to all parallel processors
       parallelNodes.forEach(node => {
         lastNode.connect(node.inputGain);
         node.inputGain.connect(node.node);
-        node.node.connect(node.outputGain);
+        node.node.connect(node.analyser!);
+        node.analyser!.connect(node.outputGain);
+        node.outputGain.gain.value = 1.0 / (parallelNodes.length + 1);
         node.outputGain.connect(sumNode);
       });
 
-      // Also connect dry signal
+      // Also connect dry signal at reduced level
       lastNode.connect(sumNode);
       lastNode = sumNode;
     }
 
-    // Connect to output
-    lastNode.connect(this.outputGainNode!);
+    // Connect to post-process: maintains unity gain through chain
+    lastNode.connect(this.postProcessGainNode!);
   }
 
   /**

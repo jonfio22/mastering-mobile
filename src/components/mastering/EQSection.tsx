@@ -12,7 +12,7 @@ export default function EQSection() {
   const channelLabels = ['1-2', '3-4', '5-6', '7-8'];
 
   return (
-    <div className="flex flex-col gap-4 p-4 bg-gradient-to-b from-gray-800 to-gray-900 rounded-lg border-2 border-gray-700">
+    <div className="flex flex-col gap-2 p-2 bg-gradient-to-b from-gray-800 to-gray-900 rounded-lg border-2 border-gray-700">
       {/* Header */}
       <div className="text-center border-b border-gray-700 pb-2">
         <h3 className="text-[10px] md:text-xs text-gray-300 font-bold tracking-wider">
@@ -21,8 +21,8 @@ export default function EQSection() {
       </div>
 
       {/* Rotary knobs row */}
-      <div className="border-2 border-gray-700 rounded-lg p-3 bg-gradient-to-b from-gray-900 to-gray-800">
-        <div className="grid grid-cols-4 md:grid-cols-8 gap-2 md:gap-3">
+      <div className="border border-gray-700 rounded-lg p-2 bg-gradient-to-b from-gray-900 to-gray-800">
+        <div className="grid grid-cols-4 md:grid-cols-8 gap-1 md:gap-2">
           {knobValues.map((value, i) => (
             <RotaryKnob
               key={i}
@@ -45,11 +45,11 @@ export default function EQSection() {
       </div>
 
       {/* Channel strips */}
-      <div className="border-2 border-gray-700 rounded-lg p-3 bg-gradient-to-b from-gray-900 to-gray-800">
-        <div className="grid grid-cols-4 md:grid-cols-5 gap-2 md:gap-4">
+      <div className="border border-gray-700 rounded-lg p-1 bg-gradient-to-b from-gray-900 to-gray-800">
+        <div className="grid grid-cols-4 md:grid-cols-5 gap-1">
           {/* Channels 1-8 */}
           {channelLabels.map((label, i) => (
-            <div key={i} className="flex flex-col items-center gap-2">
+            <div key={i} className="flex flex-col items-center gap-1">
               <div className="flex gap-1">
                 <HardwareButton
                   label="S"

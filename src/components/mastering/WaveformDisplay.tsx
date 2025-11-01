@@ -53,6 +53,7 @@ export default function WaveformDisplay({
   // Zoom level state
   const [zoom, setZoom] = useState<number>(1);
   const [isReady, setIsReady] = useState<boolean>(false);
+  const [containerMounted, setContainerMounted] = useState<boolean>(false);
 
   // Loop selection state
   const [loopSelection, setLoopSelection] = useState<LoopSelectionState>({
@@ -82,9 +83,16 @@ export default function WaveformDisplay({
   const isPlaying = playbackState === PlaybackState.PLAYING;
   const isLoading = playbackState === PlaybackState.LOADING;
 
-  // Initialize WaveSurfer
+  // Check when container is mounted
+  useEffect(() => {
+    if (containerRef.current) {
+      setContainerMounted(true);
+    }
+  }, []);
+
+  // Initialize WaveSurfer only when container is mounted and ready
   const { wavesurfer, isPlaying: wsPlaying } = useWavesurfer({
-    container: containerRef,
+    container: containerMounted && containerRef.current ? containerRef : undefined,
     height,
     waveColor: '#10b981', // VU meter green
     progressColor: '#059669', // Darker green for progress
@@ -108,47 +116,51 @@ export default function WaveformDisplay({
    * Load audio buffer into WaveSurfer when available
    */
   useEffect(() => {
-    if (wavesurfer && audioBuffer) {
+    if (wavesurfer && audioBuffer && audioBuffer.length > 0) {
+      console.log('Loading audioBuffer into WaveSurfer:', {
+        wavesurfer: !!wavesurfer,
+        audioBuffer: !!audioBuffer,
+        length: audioBuffer.length,
+        sampleRate: audioBuffer.sampleRate,
+        channels: audioBuffer.numberOfChannels
+      });
+
       try {
-        wavesurfer.loadBlob(new Blob());
-        wavesurfer.load('', [], duration || 0);
+        setIsReady(false); // Reset ready state
 
-        // Load from AudioBuffer
-        if (audioBuffer) {
-          wavesurfer.loadBlob(new Blob());
-          // Create a silent audio element to load the buffer
-          const audioContext = new AudioContext();
-          const source = audioContext.createBufferSource();
-          source.buffer = audioBuffer;
+        // Make sure the audioBuffer has valid data
+        const hasValidData = audioBuffer.getChannelData(0).some(sample => sample !== 0);
 
-          // Convert buffer to blob URL for WaveSurfer
-          const offlineContext = new OfflineAudioContext(
-            audioBuffer.numberOfChannels,
-            audioBuffer.length,
-            audioBuffer.sampleRate
-          );
-          const offlineSource = offlineContext.createBufferSource();
-          offlineSource.buffer = audioBuffer;
-          offlineSource.connect(offlineContext.destination);
-          offlineSource.start();
-
-          offlineContext.startRendering().then((renderedBuffer) => {
-            // Convert to WAV blob
-            const wav = audioBufferToWav(renderedBuffer);
-            const blob = new Blob([wav], { type: 'audio/wav' });
-            const url = URL.createObjectURL(blob);
-
-            wavesurfer.load(url);
-            setIsReady(true);
-          }).catch((error) => {
-            console.error('Failed to render audio buffer:', error);
-          });
+        if (!hasValidData) {
+          console.warn('AudioBuffer contains only silence');
         }
+
+        console.log('Converting AudioBuffer to WAV blob...');
+
+        // Convert to WAV blob directly
+        const wav = audioBufferToWav(audioBuffer);
+        const blob = new Blob([wav], { type: 'audio/wav' });
+        const url = URL.createObjectURL(blob);
+
+        console.log('Created blob URL:', url);
+
+        // Load the URL into WaveSurfer
+        wavesurfer.load(url).then(() => {
+          console.log('WaveSurfer successfully loaded audio');
+          setIsReady(true);
+
+          // Clean up blob URL after loading
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }).catch((error) => {
+          console.error('WaveSurfer failed to load audio:', error);
+          setIsReady(false);
+        });
       } catch (error) {
-        console.error('Failed to load audio into WaveSurfer:', error);
+        console.error('Failed to process audio for WaveSurfer:', error);
+        setIsReady(false);
       }
     }
-  }, [wavesurfer, audioBuffer, duration]);
+  }, [wavesurfer, audioBuffer]);
 
   /**
    * Sync WaveSurfer playback position with store
@@ -523,15 +535,7 @@ export default function WaveformDisplay({
     <div className={`w-full ${className}`}>
       {/* Waveform Container */}
       <div className="relative w-full bg-gradient-to-b from-gray-900 to-black rounded-lg border-2 border-gray-700 overflow-hidden">
-        {/* Loading overlay */}
-        {(isLoading || !isReady) && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-20 backdrop-blur-sm">
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-              <p className="text-emerald-400 text-sm font-medium">Loading waveform...</p>
-            </div>
-          </div>
-        )}
+        {/* No loading overlay */}
 
         {/* Time display */}
         <div className="absolute top-2 left-2 right-2 flex justify-between items-center z-10 px-2">

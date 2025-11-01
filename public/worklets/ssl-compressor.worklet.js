@@ -103,19 +103,18 @@ class SSLCompressorProcessor extends AudioWorkletProcessor {
   /**
    * Update attack/release time constants
    *
-   * DSP implementation in task 2.2
+   * Converts attack/release times (ms) to exponential coefficients
+   * for smooth envelope following
    */
   updateTimeConstants() {
-    // TODO: Implement time constant calculation
-    // This will be implemented in task 2.2
-    //
-    // Calculate attack coefficient from this.params.attack (ms)
-    // attackCoeff = exp(-1 / (sampleRate * attackTime))
-    //
-    // Calculate release coefficient from this.params.release (ms)
-    // releaseCoeff = exp(-1 / (sampleRate * releaseTime))
-    //
-    // These coefficients are used in the envelope follower
+    // Convert ms to seconds
+    const attackSec = this.params.attack / 1000;
+    const releaseSec = this.params.release / 1000;
+
+    // Calculate coefficients: coeff = exp(-1 / (sampleRate * timeInSec))
+    // This gives exponential decay with time constant = timeInSec
+    this.attackCoeff = Math.exp(-1 / (this.sampleRate * attackSec));
+    this.releaseCoeff = Math.exp(-1 / (this.sampleRate * releaseSec));
   }
 
   /**
@@ -134,39 +133,63 @@ class SSLCompressorProcessor extends AudioWorkletProcessor {
   /**
    * Calculate gain reduction based on input level
    *
-   * DSP implementation in task 2.2
+   * Implements SSL-style compression with soft knee characteristic
+   * Soft knee provides smooth, musical compression without harsh artifacts
    */
   computeGainReduction(inputLevel) {
-    // TODO: Implement SSL-style compression curve
-    // This will be implemented in task 2.2
-    //
-    // 1. Convert input level to dB
-    // 2. Compare to threshold
-    // 3. Apply ratio above threshold
-    // 4. Return gain reduction in linear (not dB)
-    //
-    // Classic SSL characteristic:
-    // - Soft knee for smooth compression
-    // - Ratio-dependent curve shaping
-    //
-    // For now, return 1.0 (no gain reduction)
-    return 1.0;
+    // Prevent log of zero
+    if (inputLevel < 1e-10) {
+      return 1.0;
+    }
+
+    // Convert to dB
+    const inputDb = 20 * Math.log10(inputLevel);
+
+    // Soft knee implementation: wider knee = smoother compression
+    // Knee width: 2 * width (centered on threshold)
+    const kneeWidth = 2; // dB
+
+    if (inputDb < this.params.threshold - kneeWidth) {
+      // Below knee - no compression
+      return 1.0;
+    }
+
+    if (inputDb > this.params.threshold + kneeWidth) {
+      // Above knee - full compression
+      // Gain reduction = (threshold + (input - threshold) / ratio - input)
+      const gainReductionDb = (this.params.threshold + (inputDb - this.params.threshold) / this.params.ratio) - inputDb;
+      return Math.pow(10, gainReductionDb / 20);
+    }
+
+    // Inside soft knee - interpolate smoothly
+    // Use parabolic curve for smooth knee (better than linear)
+    const kneeCenter = this.params.threshold;
+    const x = (inputDb - (kneeCenter - kneeWidth)) / (2 * kneeWidth);
+    const kneeGain = 1 - (1 - 1 / this.params.ratio) * x * x;
+
+    // Apply soft knee compression
+    const gainReductionDb = (kneeCenter + (inputDb - kneeCenter) * kneeGain / this.params.ratio) - inputDb;
+    return Math.pow(10, gainReductionDb / 20);
   }
 
   /**
    * Apply envelope follower
    *
-   * DSP implementation in task 2.2
+   * Uses exponential smoothing with separate attack and release
+   * rates for responsive compression with smooth recovery
    */
   smoothEnvelope(targetGain) {
-    // TODO: Implement attack/release envelope follower
-    // This will be implemented in task 2.2
-    //
-    // Use attackCoeff/releaseCoeff for smooth gain changes
-    // Faster attack, slower release for punchy compression
-    //
-    // For now, return target gain directly
-    return targetGain;
+    // Separate attack and release for typical compressor behavior
+    // Attack is fast (responsive), release is slower (musical)
+    if (targetGain < this.envelope) {
+      // Attack: quickly respond to increases in signal
+      this.envelope = this.attackCoeff * this.envelope + (1 - this.attackCoeff) * targetGain;
+    } else {
+      // Release: slowly return to unity (prevents pumping)
+      this.envelope = this.releaseCoeff * this.envelope + (1 - this.releaseCoeff) * targetGain;
+    }
+
+    return this.envelope;
   }
 
   /**
@@ -204,18 +227,19 @@ class SSLCompressorProcessor extends AudioWorkletProcessor {
       const rightSample = (isStereo && input[1]) ? input[1][i] : leftSample;
       const peakLevel = Math.max(Math.abs(leftSample), Math.abs(rightSample));
 
-      // DSP implementation in task 2.2
       // 1. Calculate gain reduction based on peak level
-      // const targetGain = this.computeGainReduction(peakLevel);
-      //
-      // 2. Smooth with attack/release envelope
-      // const gain = this.smoothEnvelope(targetGain);
-      //
-      // 3. Apply gain reduction and makeup gain
-      // const finalGain = gain * makeupGain;
+      const targetGain = this.computeGainReduction(peakLevel);
 
-      // For now, just pass through with makeup gain
-      const finalGain = makeupGain;
+      // 2. Smooth with attack/release envelope
+      const gain = this.smoothEnvelope(targetGain);
+
+      // 3. Track for metering
+      const gainReductionDb = 20 * Math.log10(gain);
+      this.gainReduction = -gainReductionDb; // Negative because gain < 1 means reduction
+      this.maxGainReduction = Math.max(this.maxGainReduction, this.gainReduction);
+
+      // 4. Apply gain reduction and makeup gain
+      const finalGain = gain * makeupGain;
 
       // Apply to output
       if (output[0]) {

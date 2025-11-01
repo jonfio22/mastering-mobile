@@ -1,12 +1,20 @@
 import React, { useState } from 'react';
 
-export default function HardwareButton({ 
-  label, 
-  active = false, 
+interface HardwareButtonProps {
+  label: string;
+  active?: boolean;
+  onClick: () => void;
+  variant?: 'default' | 'solo' | 'mute';
+  size?: 'small' | 'medium' | 'large';
+}
+
+export default function HardwareButton({
+  label,
+  active = false,
   onClick,
   variant = 'default',
   size = 'medium'
-}) {
+}: HardwareButtonProps) {
   const [isPressed, setIsPressed] = useState(false);
 
   const variants = {

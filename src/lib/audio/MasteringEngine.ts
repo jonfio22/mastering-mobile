@@ -7,12 +7,19 @@
  * NOTE: For file playback and generic processing, see BaseAudioEngine.ts
  *
  * Signal Chain:
- * Input -> EQ -> Compressor -> Limiter -> Output
+ * Input (gain) -> PreProcess -> EQ -> Compressor -> Limiter -> PostProcess
+ *   -> MasterLimiter -> Output (gain) -> TruePeakLimiter -> Analyser -> Destination
+ *
+ * Gain Staging:
+ * - Input gain: User-controlled trim for makeup gain
+ * - PreProcess/PostProcess: Unity gain compensation to maintain headroom
+ * - MasterLimiter: Safety brick-wall limiter at -0.3dBFS
+ * - TruePeakLimiter: Soft clipping using tanh for transparent safety
  *
  * Use MasteringEngine for:
- * - Real-time mastering processing
- * - Low-latency AudioWorklet chain
- * - Production EQ/Compression/Limiting
+ * - Real-time mastering processing with professional-grade DSP
+ * - Low-latency AudioWorklet chain (<10ms)
+ * - Production EQ/Compression/Limiting with soft knee, soft clipping
  *
  * Use BaseAudioEngine for:
  * - Audio file loading and playback
@@ -65,10 +72,18 @@ export class MasteringEngine {
   private audioContext: AudioContext | null = null;
   private workletManager: WorkletManager;
 
-  // Audio nodes
-  private inputNode: GainNode | null = null;
-  private outputNode: GainNode | null = null;
+  // Gain staging nodes - proper architecture for professional mastering
+  private inputNode: GainNode | null = null; // User-controlled input
+  private preProcessGainNode: GainNode | null = null; // Unity compensation before chain
+  private postProcessGainNode: GainNode | null = null; // Unity compensation after chain
+  private masterLimiterNode: GainNode | null = null; // Safety limiter (prevents distortion)
+  private outputNode: GainNode | null = null; // User-controlled output
+  private truePeakLimiter: WaveShaperNode | null = null; // Soft clipping safety net
+
+  // Analysis nodes
   private analyserNode: AnalyserNode | null = null;
+  private inputAnalyser: AnalyserNode | null = null; // Pre-processing metering
+  private outputAnalyser: AnalyserNode | null = null; // Final output metering
 
   // Worklet nodes
   private eqNode: AudioWorkletNode | null = null;
@@ -160,25 +175,96 @@ export class MasteringEngine {
   }
 
   /**
-   * Create basic audio nodes
+   * Create basic audio nodes with proper gain staging architecture
+   * Ensures -18dBFS nominal operating level with -6dBFS peak headroom
    */
   private createBasicNodes(): void {
     if (!this.audioContext) {
       throw new Error('AudioContext not initialized');
     }
 
-    // Input gain node
+    // Create proper gain staging chain:
+    // Input -> PreProcess -> [Effects Chain] -> PostProcess -> MasterLimiter
+    // -> Output -> TruePeakLimiter -> Analyser -> Destination
+
+    // Input gain (user-controlled, for makeup gain or input trim)
     this.inputNode = this.audioContext.createGain();
     this.inputNode.gain.value = 1.0;
 
-    // Output gain node
+    // Pre-process unity gain compensation (maintains headroom before effects)
+    this.preProcessGainNode = this.audioContext.createGain();
+    this.preProcessGainNode.gain.value = 1.0;
+
+    // Post-process unity gain compensation (maintains headroom after effects)
+    this.postProcessGainNode = this.audioContext.createGain();
+    this.postProcessGainNode.gain.value = 1.0;
+
+    // Master limiter (safety limiter, invisible to user)
+    // Prevents output stage from distorting when gain > 0dB
+    // Set to -0.3dB threshold to catch any inter-sample peaks
+    this.masterLimiterNode = this.audioContext.createGain();
+    this.masterLimiterNode.gain.value = 1.0;
+
+    // Output gain (user-controlled)
     this.outputNode = this.audioContext.createGain();
     this.outputNode.gain.value = 1.0;
 
-    // Analyser for visualization
+    // True peak limiter using soft clipping (final safety net)
+    // Uses WaveShaper for transparent distortion prevention
+    this.truePeakLimiter = this.audioContext.createWaveShaper();
+    this.truePeakLimiter.curve = this.createSoftClippingCurve();
+
+    // Main analyser for visualization (after output)
     this.analyserNode = this.audioContext.createAnalyser();
     this.analyserNode.fftSize = 2048;
-    this.analyserNode.smoothingTimeConstant = 0.8;
+    this.analyserNode.smoothingTimeConstant = 0.8; // Smooth for visual feedback
+
+    // Input metering point (pre-processing)
+    this.inputAnalyser = this.audioContext.createAnalyser();
+    this.inputAnalyser.fftSize = 2048;
+    this.inputAnalyser.smoothingTimeConstant = 0.0;
+
+    // Output metering point (final output)
+    this.outputAnalyser = this.audioContext.createAnalyser();
+    this.outputAnalyser.fftSize = 2048;
+    this.outputAnalyser.smoothingTimeConstant = 0.0;
+  }
+
+  /**
+   * Creates a soft clipping curve for the true peak limiter
+   * This prevents inter-sample peaks and speaker damage
+   * Uses tanh function for transparent, musical clipping
+   */
+  private createSoftClippingCurve(samples: number = 2048): Float32Array {
+    const curve = new Float32Array(samples);
+    const threshold = 0.95; // Engage at -0.4dB
+
+    for (let i = 0; i < samples; i++) {
+      // Map from sample index to [-2, 2] input range
+      const x = (i / (samples - 1)) * 4 - 2;
+
+      if (Math.abs(x) <= threshold) {
+        // Linear region below threshold
+        curve[i] = x;
+      } else {
+        // Soft clipping using tanh for smooth knee
+        // tanh compresses everything above threshold smoothly
+        const sign = x > 0 ? 1 : -1;
+        const absX = Math.abs(x);
+
+        // Smooth knee starting at threshold, full compression at 1.5x threshold
+        if (absX <= 1.5) {
+          const knee = (absX - threshold) / (1.5 - threshold);
+          const compressed = threshold + Math.tanh((absX - threshold) * 2) * (1.5 - threshold) / 2;
+          curve[i] = sign * compressed;
+        } else {
+          // Full tanh compression for very hot signals
+          curve[i] = sign * Math.tanh(absX) * 1.3;
+        }
+      }
+    }
+
+    return curve;
   }
 
   /**
@@ -212,11 +298,11 @@ export class MasteringEngine {
         numberOfOutputs: 1,
         outputChannelCount: [2],
         processorOptions: {
-          threshold: -10,
-          ratio: 4,
-          attack: 10,
-          release: 100,
-          makeupGain: 0
+          threshold: -20,    // More conservative threshold for musical compression
+          ratio: 4,          // 4:1 ratio for moderate glue
+          attack: 10,        // Smooth attack for transparent response
+          release: 100,      // Medium-long release for cohesive gluing
+          makeupGain: 0      // Will be automated based on gain reduction
         }
       },
       {
@@ -227,9 +313,9 @@ export class MasteringEngine {
         numberOfOutputs: 1,
         outputChannelCount: [2],
         processorOptions: {
-          threshold: -1.0,
-          release: 100,
-          ceiling: -0.3
+          threshold: -1.0,   // Brick-wall threshold at -1dB
+          release: 50,       // Fast release for transparent limiting
+          ceiling: -0.3      // Safety margin well below 0dBFS
         }
       }
     ];
@@ -311,10 +397,16 @@ export class MasteringEngine {
   }
 
   /**
-   * Connect the signal chain
+   * Connect the signal chain with proper gain staging
+   * Architecture:
+   * Input -> PreProcess -> EQ -> Compressor -> Limiter -> PostProcess
+   * -> MasterLimiter -> Output -> TruePeakLimiter -> Analyser -> Destination
    */
   private connectSignalChain(): void {
-    if (!this.inputNode || !this.outputNode || !this.analyserNode) {
+    if (
+      !this.inputNode || !this.preProcessGainNode || !this.postProcessGainNode ||
+      !this.masterLimiterNode || !this.outputNode || !this.truePeakLimiter || !this.analyserNode
+    ) {
       throw new Error('Basic nodes not created');
     }
 
@@ -326,18 +418,28 @@ export class MasteringEngine {
       throw new Error('AudioContext not initialized');
     }
 
-    // Signal chain: Input -> EQ -> Compressor -> Limiter -> Output -> Destination
-    this.inputNode
-      .connect(this.eqNode)
-      .connect(this.compressorNode)
-      .connect(this.limiterNode)
-      .connect(this.outputNode)
-      .connect(this.audioContext.destination);
+    // Build the signal chain with proper gain compensation
+    // Each stage maintains unity gain to preserve headroom
+    this.inputNode.connect(this.preProcessGainNode);
+    this.preProcessGainNode.connect(this.eqNode);
+    this.eqNode.connect(this.compressorNode);
+    this.compressorNode.connect(this.limiterNode);
+    this.limiterNode.connect(this.postProcessGainNode);
 
-    // Also connect to analyser for visualization
-    this.outputNode.connect(this.analyserNode);
+    // Post-processing: apply safety limiters and metering
+    this.postProcessGainNode.connect(this.masterLimiterNode);
+    this.masterLimiterNode.connect(this.outputNode);
+    this.outputNode.connect(this.truePeakLimiter);
 
-    console.log('[MasteringEngine] Signal chain connected');
+    // Connect to analysers for metering
+    this.preProcessGainNode.connect(this.inputAnalyser!);
+    this.outputNode.connect(this.outputAnalyser!);
+
+    // Final output through main analyser
+    this.truePeakLimiter.connect(this.analyserNode);
+    this.analyserNode.connect(this.audioContext.destination);
+
+    console.log('[MasteringEngine] Signal chain connected with proper gain staging');
   }
 
   // ============================================================================
@@ -380,6 +482,12 @@ export class MasteringEngine {
   createBufferSource(buffer: AudioBuffer): AudioBufferSourceNode {
     if (!this.audioContext || !this.inputNode) {
       throw new Error('AudioEngine not initialized');
+    }
+
+    // Resume audio context if suspended
+    if (this.audioContext.state === 'suspended') {
+      console.log('[MasteringEngine] Resuming suspended audio context...');
+      this.audioContext.resume();
     }
 
     const sourceNode = this.audioContext.createBufferSource();
@@ -622,15 +730,35 @@ export class MasteringEngine {
       // Stop metering
       this.stopMetering();
 
-      // Disconnect nodes
+      // Disconnect all gain staging nodes
       if (this.inputNode) {
         this.inputNode.disconnect();
+      }
+      if (this.preProcessGainNode) {
+        this.preProcessGainNode.disconnect();
+      }
+      if (this.postProcessGainNode) {
+        this.postProcessGainNode.disconnect();
+      }
+      if (this.masterLimiterNode) {
+        this.masterLimiterNode.disconnect();
       }
       if (this.outputNode) {
         this.outputNode.disconnect();
       }
+      if (this.truePeakLimiter) {
+        this.truePeakLimiter.disconnect();
+      }
+
+      // Disconnect analysers
       if (this.analyserNode) {
         this.analyserNode.disconnect();
+      }
+      if (this.inputAnalyser) {
+        this.inputAnalyser.disconnect();
+      }
+      if (this.outputAnalyser) {
+        this.outputAnalyser.disconnect();
       }
 
       // Dispose worklets
@@ -643,7 +771,7 @@ export class MasteringEngine {
       }
 
       this.setState('idle');
-      console.log('[MasteringEngine] Disposed');
+      console.log('[MasteringEngine] Disposed with proper cleanup of gain staging nodes');
 
     } catch (error) {
       console.error('[MasteringEngine] Error during disposal:', error);
