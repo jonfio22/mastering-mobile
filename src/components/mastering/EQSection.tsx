@@ -76,6 +76,7 @@ export default function EQSection() {
               </div>
               <span className="text-[9px] text-gray-300 font-mono">{label}</span>
               <VerticalFader
+                label=""
                 value={faderValues[i]}
                 onChange={(val) => {
                   const newValues = [...faderValues];
@@ -95,6 +96,7 @@ export default function EQSection() {
             />
             <span className="text-[9px] text-gray-300 font-mono">MASTER</span>
             <VerticalFader
+              label=""
               value={faderValues[4]}
               onChange={(val) => {
                 const newValues = [...faderValues];
