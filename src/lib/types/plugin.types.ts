@@ -133,29 +133,29 @@ export const DEFAULT_PLUGIN_PARAMS: AllPluginParams = {
     bassFreq: 100,
     trebleGain: 0,
     trebleFreq: 10000,
-    bypassed: false,
+    bypassed: true, // Start bypassed - user can enable processing
   },
   limiter: {
     threshold: -0.3,
     release: 100,
     ceiling: -0.1,
-    bypassed: false,
+    bypassed: true, // Start bypassed - protective limiter can be enabled if needed
   },
   stereo: {
     width: 100,
-    bypassed: false,
+    bypassed: true, // Start bypassed - no stereo processing by default
   },
   tape: {
     drive: 0,
-    bypassed: false,
+    bypassed: true, // Start bypassed - no tape saturation by default
   },
   input: {
     gain: 0,
-    bypassed: false,
+    bypassed: true, // Start bypassed - no input gain processing by default
   },
   output: {
     gain: 0,
-    bypassed: false,
+    bypassed: true, // Start bypassed - no output gain processing by default
   },
 };
 

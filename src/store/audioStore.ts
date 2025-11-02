@@ -208,14 +208,14 @@ export interface AudioStore {
  */
 const DEFAULT_PROCESSING_PARAMS: ProcessingParams = {
   eq: {
-    bypass: false,
+    bypass: true, // Start bypassed - user can enable EQ processing
     bassGain: 0,
     bassFreq: 100,
     trebleGain: 0,
     trebleFreq: 10000,
   },
   compressor: {
-    bypass: true,
+    bypass: true, // Disabled by default
     threshold: -10,
     ratio: 4,
     attack: 10,
@@ -223,7 +223,7 @@ const DEFAULT_PROCESSING_PARAMS: ProcessingParams = {
     makeupGain: 0,
   },
   limiter: {
-    bypass: false,
+    bypass: true, // Start bypassed - user can enable protective limiter if needed
     threshold: -0.3,
     release: 50,
     ceiling: -0.1,
@@ -231,7 +231,7 @@ const DEFAULT_PROCESSING_PARAMS: ProcessingParams = {
   master: {
     inputGain: 0,
     outputGain: 0,
-    bypass: false,
+    bypass: true, // Start bypassed - no master processing by default
   },
 };
 

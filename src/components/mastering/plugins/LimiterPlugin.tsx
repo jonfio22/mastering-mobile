@@ -25,7 +25,7 @@ export default function LimiterPlugin() {
     updatePluginParams('limiter', {
       threshold: -0.3,
       release: 100,
-      bypassed: false,
+      bypassed: true, // Reset to bypassed state
     });
   };
 

@@ -37,7 +37,7 @@ export default function EQPlugin() {
       bassFreq: 100,
       trebleGain: 0,
       trebleFreq: 10000,
-      bypassed: false,
+      bypassed: true, // Reset to bypassed state
     });
   };
 

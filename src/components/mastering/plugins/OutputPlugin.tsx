@@ -22,7 +22,7 @@ export default function OutputPlugin() {
   };
 
   const handleReset = () => {
-    updatePluginParams('output', { gain: 0, bypassed: false });
+    updatePluginParams('output', { gain: 0, bypassed: true }); // Reset to bypassed state
   };
 
   const gainKnob = dBToKnob(outputParams.gain, -12, 12);

@@ -22,7 +22,7 @@ export default function StereoPlugin() {
   };
 
   const handleReset = () => {
-    updatePluginParams('stereo', { width: 100, bypassed: false });
+    updatePluginParams('stereo', { width: 100, bypassed: true }); // Reset to bypassed state
   };
 
   const widthKnob = percentToKnob(stereoParams.width, 0, 200);

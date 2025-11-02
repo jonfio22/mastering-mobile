@@ -22,7 +22,7 @@ export default function TapePlugin() {
   };
 
   const handleReset = () => {
-    updatePluginParams('tape', { drive: 0, bypassed: false });
+    updatePluginParams('tape', { drive: 0, bypassed: true }); // Reset to bypassed state
   };
 
   const driveKnob = percentToKnob(tapeParams.drive, 0, 100);
