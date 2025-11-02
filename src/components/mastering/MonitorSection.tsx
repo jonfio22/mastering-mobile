@@ -113,28 +113,29 @@ export default function MonitorSection({ audioData }: { audioData: any }) {
       <button
         onClick={() => router.push('/monitor')}
         className="
-          relative px-4 py-4 rounded-lg
+          relative px-3 py-3 md:px-4 md:py-4 rounded-lg
           bg-gradient-to-b from-gray-700 to-gray-800
           border-2 border-gray-600
           shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),0_1px_2px_rgba(255,255,255,0.1)]
           hover:from-gray-650 hover:to-gray-750
           active:shadow-[inset_0_4px_8px_rgba(0,0,0,0.7)]
           transition-all duration-75
+          w-full
         "
       >
-        <div className="flex flex-col items-center gap-2">
+        <div className="flex flex-col items-center gap-1.5 md:gap-2">
           {/* Monitor symbol - three horizontal bars with dots */}
           <div className="flex items-center gap-1">
             <div className="w-1 h-1 bg-gray-300 rounded-full" />
-            <div className="w-6 h-px bg-gray-300" />
+            <div className="w-5 md:w-6 h-px bg-gray-300" />
             <div className="w-1 h-1 bg-gray-300 rounded-full" />
           </div>
           <div className="flex items-center gap-1">
             <div className="w-1 h-1 bg-gray-300 rounded-full" />
-            <div className="w-6 h-px bg-gray-300" />
+            <div className="w-5 md:w-6 h-px bg-gray-300" />
             <div className="w-1 h-1 bg-gray-300 rounded-full" />
           </div>
-          <span className="text-[10px] md:text-[11px] text-gray-300 font-bold tracking-wider">
+          <span className="text-[9px] md:text-[11px] text-gray-300 font-bold tracking-wider whitespace-nowrap">
             MONITOR
           </span>
         </div>
