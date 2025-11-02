@@ -77,8 +77,12 @@ export default function MasteringDAW() {
               {/* Error Display - compact */}
               {error && (
                 <div className="bg-red-900/20 border border-red-600 rounded p-2 flex items-center gap-2 text-xs">
-                  <span className="text-red-400">⚠️ {error}</span>
-                  <button onClick={clearError} className="text-red-400 hover:text-red-300 ml-auto">✕</button>
+                  <div className="flex items-center gap-1">
+                    <div className="w-1.5 h-1.5 bg-red-500 rounded-full" />
+                    <span className="text-red-400 font-mono text-[10px]">ERROR</span>
+                  </div>
+                  <span className="text-red-400 flex-1">{error}</span>
+                  <button onClick={clearError} className="text-red-400 hover:text-red-300 ml-auto font-mono">×</button>
                 </div>
               )}
 
@@ -86,7 +90,8 @@ export default function MasteringDAW() {
               {isLoading && (
                 <div className="bg-blue-900/20 border border-blue-600 rounded p-2 flex items-center gap-2 text-xs">
                   <div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-blue-400">Loading audio...</span>
+                  <span className="text-blue-400 font-mono">LOADING</span>
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse ml-auto" />
                 </div>
               )}
 

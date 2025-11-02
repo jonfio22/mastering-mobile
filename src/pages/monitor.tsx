@@ -144,8 +144,13 @@ export default function MonitorPage() {
           >
             ← BACK
           </button>
-          <h1 className="text-base md:text-lg font-bold text-gray-100 tracking-widest">
-            📊 MONITOR
+          <h1 className="text-base md:text-lg font-bold text-gray-100 tracking-widest flex items-center gap-2">
+            <div className="flex items-center gap-0.5">
+              <div className="w-1 h-1 bg-gray-300 rounded-full" />
+              <div className="w-3 h-px bg-gray-300" />
+              <div className="w-1 h-1 bg-gray-300 rounded-full" />
+            </div>
+            MONITOR
           </h1>
           <div className="w-12" />
         </div>
@@ -153,8 +158,12 @@ export default function MonitorPage() {
         {/* Error Display */}
         {error && (
           <div className="mx-3 mt-3 bg-red-900/20 border border-red-600 rounded p-2 flex items-center gap-2 text-xs">
-            <span className="text-red-400">⚠️ {error}</span>
-            <button onClick={clearError} className="text-red-400 hover:text-red-300 ml-auto">✕</button>
+            <div className="flex items-center gap-1">
+              <div className="w-1.5 h-1.5 bg-red-500 rounded-full" />
+              <span className="text-red-400 font-mono text-[10px]">ERROR</span>
+            </div>
+            <span className="text-red-400 flex-1">{error}</span>
+            <button onClick={clearError} className="text-red-400 hover:text-red-300 ml-auto font-mono">×</button>
           </div>
         )}
 
@@ -217,15 +226,19 @@ export default function MonitorPage() {
             {!hasReferenceTrack && (
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full px-4 py-3 rounded-lg bg-gradient-to-b from-gray-700 to-gray-800 border-2 border-dashed border-gray-600 hover:border-blue-500 transition-all"
+                className="w-full px-4 py-3 rounded-lg bg-gradient-to-b from-gray-700 to-gray-800 border-2 border-dashed border-gray-600 hover:border-gray-500 transition-all"
               >
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-2xl">📁</span>
+                <div className="flex flex-col items-center gap-2">
+                  {/* File icon - folder/document style */}
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 border border-gray-400 rounded" />
+                    <div className="w-4 h-px bg-gray-400" />
+                  </div>
                   <span className="text-xs font-bold text-gray-300 tracking-wider">
-                    UPLOAD REFERENCE TRACK
+                    UPLOAD REFERENCE
                   </span>
                   <span className="text-[10px] text-gray-500">
-                    Compare your master with a reference
+                    A/B Comparison
                   </span>
                 </div>
               </button>
@@ -272,8 +285,8 @@ export default function MonitorPage() {
                 onClick={handleRemoveReference}
                 className="w-full px-3 py-2 rounded-lg bg-red-900/20 border border-red-600 hover:bg-red-900/30 transition-all"
               >
-                <span className="text-xs font-bold text-red-400 tracking-wider">
-                  ✕ REMOVE REFERENCE
+                <span className="text-xs font-bold text-red-400 tracking-wider font-mono">
+                  × REMOVE REFERENCE
                 </span>
               </button>
             )}

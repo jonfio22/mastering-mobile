@@ -610,9 +610,9 @@ export class ProfessionalAudioEngine {
     if (params.bands) {
       // Update individual bands
       params.bands.forEach((band, index) => {
-        this.workletManager.sendMessage('professional-eq', {
-          type: 'band',
-          payload: { index, params: band }
+        // Send each band as individual parameter updates
+        Object.entries(band).forEach(([key, value]) => {
+          this.workletManager.setParameter('professional-eq', `band${index}_${key}`, value as number);
         });
       });
     }

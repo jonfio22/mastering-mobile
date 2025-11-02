@@ -113,17 +113,31 @@ export default function MonitorSection({ audioData }: { audioData: any }) {
       <button
         onClick={() => router.push('/monitor')}
         className="
-          px-4 py-3 rounded-lg
-          bg-gradient-to-b from-blue-700 to-blue-800
-          border-2 border-blue-600
+          relative px-4 py-4 rounded-lg
+          bg-gradient-to-b from-gray-700 to-gray-800
+          border-2 border-gray-600
           shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),0_1px_2px_rgba(255,255,255,0.1)]
-          hover:from-blue-650 hover:to-blue-750
+          hover:from-gray-650 hover:to-gray-750
           active:shadow-[inset_0_4px_8px_rgba(0,0,0,0.7)]
           transition-all duration-75
-          text-center text-gray-100 text-sm font-bold tracking-wider uppercase
         "
       >
-        📊 Monitor
+        <div className="flex flex-col items-center gap-2">
+          {/* Monitor symbol - three horizontal bars with dots */}
+          <div className="flex items-center gap-1">
+            <div className="w-1 h-1 bg-gray-300 rounded-full" />
+            <div className="w-6 h-px bg-gray-300" />
+            <div className="w-1 h-1 bg-gray-300 rounded-full" />
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-1 h-1 bg-gray-300 rounded-full" />
+            <div className="w-6 h-px bg-gray-300" />
+            <div className="w-1 h-1 bg-gray-300 rounded-full" />
+          </div>
+          <span className="text-[10px] md:text-[11px] text-gray-300 font-bold tracking-wider">
+            MONITOR
+          </span>
+        </div>
       </button>
     </div>
   );
