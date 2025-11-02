@@ -1,8 +1,6 @@
 import React, { useEffect } from 'react';
 import { useAudioStore } from '../store/audioStore';
-import EQSection from '../components/mastering/EQSection';
 import MonitorSection from '../components/mastering/MonitorSection';
-import MasterSection from '../components/mastering/MasterSection';
 import AudioUploader from '../components/mastering/AudioUploader';
 import AudioPlayer from '../components/mastering/AudioPlayer';
 import PluginModal from '../components/mastering/PluginModal';
@@ -68,7 +66,7 @@ export default function MasteringDAW() {
                 <path d="M5 15 L12 8 L12 22 Z M18 8 L25 15 L18 22 Z M32 8 L39 15 L32 22 Z M45 15 L38 8 L38 22 Z" />
               </svg>
               <h1 className="text-base md:text-lg font-bold text-gray-100 tracking-widest">
-                MAESTRO MASTERING SUITE
+                FIO MASTERING SUITE
               </h1>
             </div>
           </div>
@@ -103,27 +101,8 @@ export default function MasteringDAW() {
 
           {/* Main control panel - fills remaining space */}
           <div className="flex-1 p-2 md:p-3 overflow-hidden">
-            {/* Desktop layout - 3 columns */}
-            <div className="hidden lg:flex lg:gap-3 h-full">
-              <div className="flex-1"><EQSection /></div>
-              <div className="flex-[1.5]"><MonitorSection audioData={meteringData} /></div>
-              <div className="flex-1"><MasterSection /></div>
-            </div>
-
-            {/* Tablet layout - 2 columns */}
-            <div className="hidden md:grid lg:hidden grid-cols-2 gap-2 h-full">
-              <EQSection />
+            <div className="h-full max-w-2xl mx-auto">
               <MonitorSection audioData={meteringData} />
-              <div className="col-span-2">
-                <MasterSection />
-              </div>
-            </div>
-
-            {/* Mobile layout - stacked */}
-            <div className="md:hidden flex flex-col gap-2 h-full overflow-y-auto">
-              <MonitorSection audioData={meteringData} />
-              <EQSection />
-              <MasterSection />
             </div>
           </div>
       </div>

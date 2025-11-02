@@ -1,10 +1,12 @@
 import React, { useState, useRef } from 'react';
+import { useRouter } from 'next/router';
 import VUMeter from './VUMeter';
 import RotaryKnob from './RotaryKnob';
 import HardwareButton from './HardwareButton';
 import { useAudioStore } from '@/store/audioStore';
 
 export default function MonitorSection({ audioData }: { audioData: any }) {
+  const router = useRouter();
   const [eqGain, setEqGain] = useState(50);
   const [monitor, setMonitor] = useState(50);
   const [redGain, setRedGain] = useState(50);
@@ -70,19 +72,6 @@ export default function MonitorSection({ audioData }: { audioData: any }) {
 
   return (
     <div className="flex flex-col gap-2 p-2 bg-gradient-to-b from-gray-800 to-gray-900 rounded-lg border-2 border-gray-700 h-full">
-      {/* SOHO Centerpiece Header */}
-      <div className="text-center border-b border-gray-700 pb-2">
-        <div className="flex items-center justify-center gap-2">
-          <svg viewBox="0 0 40 20" className="w-8 h-4 fill-gray-400">
-            <path d="M5 10 L10 5 L10 15 Z M15 5 L20 10 L15 15 Z M25 5 L30 10 L25 15 Z M35 10 L30 5 L30 15 Z" />
-          </svg>
-          <h3 className="text-xs md:text-sm text-gray-200 font-bold tracking-widest">
-            SOHO CENTERPIECE
-          </h3>
-        </div>
-        <p className="text-[7px] md:text-[8px] text-gray-400 mt-1">12 & 6 CERTIMM 96KHAL</p>
-      </div>
-
       {/* VU Meters */}
       <div className="grid grid-cols-2 gap-2">
         <VUMeter label="VOLUME" type="volume" value={volumeValue} />
@@ -119,6 +108,23 @@ export default function MonitorSection({ audioData }: { audioData: any }) {
           </button>
         ))}
       </div>
+
+      {/* Monitor Button */}
+      <button
+        onClick={() => router.push('/monitor')}
+        className="
+          px-4 py-3 rounded-lg
+          bg-gradient-to-b from-blue-700 to-blue-800
+          border-2 border-blue-600
+          shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),0_1px_2px_rgba(255,255,255,0.1)]
+          hover:from-blue-650 hover:to-blue-750
+          active:shadow-[inset_0_4px_8px_rgba(0,0,0,0.7)]
+          transition-all duration-75
+          text-center text-gray-100 text-sm font-bold tracking-wider uppercase
+        "
+      >
+        📊 Monitor
+      </button>
     </div>
   );
 }

@@ -36,12 +36,19 @@ export default function PluginBase({
   children,
 }: PluginBaseProps) {
   return (
-    <div className="h-full flex flex-col bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+    <div className="h-full flex flex-col bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 relative">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700/50 bg-gradient-to-r from-gray-900/90 to-gray-800/90 backdrop-blur">
-        <h2 className="text-lg md:text-xl font-bold tracking-[0.2em] text-emerald-400 uppercase">
-          {title}
-        </h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg md:text-xl font-bold tracking-[0.2em] text-emerald-400 uppercase">
+            {title}
+          </h2>
+          {bypassed && (
+            <span className="px-2 py-1 bg-red-900/30 border border-red-500/50 rounded text-red-400 text-xs font-bold tracking-wider">
+              BYPASSED
+            </span>
+          )}
+        </div>
         <button
           onClick={onClose}
           className="px-4 py-2 rounded-md bg-gradient-to-b from-gray-700 to-gray-800 hover:from-gray-600 hover:to-gray-700 transition-all text-gray-200 text-xs font-bold tracking-widest shadow-lg border border-gray-600"
@@ -52,11 +59,6 @@ export default function PluginBase({
 
       {/* Plugin-specific controls (children) */}
       <div className="flex-1 overflow-auto p-6 bg-gradient-to-b from-transparent to-gray-900/20">
-        {bypassed && (
-          <div className="mb-4 p-3 bg-red-900/10 border border-red-500/30 rounded-lg text-red-400 text-sm text-center backdrop-blur">
-            ⚠️ Plugin Bypassed - Enable to hear changes
-          </div>
-        )}
         {children}
       </div>
 
